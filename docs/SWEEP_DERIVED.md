@@ -439,3 +439,7 @@ v14 vs v13 **32W-0L +5,735 worst +4,365**. vs `bench/v3.py` **32W-0L +14,993**, 
 of it. `ref_broker_bea` **-58,898**, the best margin the lineage has recorded (v7 -62,684).
 Against the two strongest benches it is mixed: meta bench -60,454 against v13's -53,629, mined trace
 92791997 -31,664 against v13's -38,133. All four stages green.
+
+Trading animals for crop tiles at a constant labour cost does not pay: 11 animals + 31 crops is
+14W-18L -179 (neutral but with a -8,056 worst case) and 15 animals + 25 crops is 6W-26L -4,501.
+13 animals + 28 crops stands.
