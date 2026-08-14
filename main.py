@@ -57,7 +57,10 @@ LAST_DAY = 29                # unsold stock scores nothing, so liquidate
 SHED_CAP = 100
 SHED_TILES = [(4, 4), (5, 4), (4, 5), (5, 5)]
 CASH_FLOOR = 250            # absolute minimum cash
-FEED_DAYS = 3               # days of wheat feed to keep funded before any purchase
+# Days of wheat feed to keep funded before any purchase. 32 paired episodes against
+# 3: FEED_DAYS 1 is 24W-8L +655 and 2 is 24W-8L +664 -- the same result, so take the
+# safer one; two unfed days is an escape and that is unrecoverable.
+FEED_DAYS = 2
 SEED_BATCH = 5
 # Found by the Optuna study `v9mirror` (tools/tune.py, 100 trials against a frozen
 # main.py) and confirmed at 32 episodes. Cow-heavy, wheat-heavy, and it needs the

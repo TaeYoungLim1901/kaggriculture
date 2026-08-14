@@ -24,7 +24,7 @@ STEPS = 720
 OVERRIDABLE = {
     "LAND_TARGET", "CROP_PLAN", "ANIMAL_PLAN", "HIRES", "SEED_BATCH", "LAND_RESERVE",
     "ANIMAL_RESERVE", "ANIMAL_PIPELINE", "DRAIN_SCALE", "PLANT_CAP", "DIST_WEIGHT",
-    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0", "SELL_BY_VALUE", "FERT_RESERVE", "PRIO_COST", "BUY_SLOTS",
+    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0", "SELL_BY_VALUE", "FERT_RESERVE", "PRIO_COST", "CASH_FLOOR", "FEED_DAYS", "SHED_CAP", "BUY_SLOTS",
 }
 SUMMARY = re.compile(
     r"(?P<w>\d+)W-(?P<l>\d+)L-(?P<t>\d+)T over (?P<n>\d+) games "
@@ -117,6 +117,15 @@ CONFIGS = {
     "k-L3": {"LAND_TARGET": 3},
     # Priority bands. With DIST_WEIGHT 20 a 200-point band gap is worth 10 tiles of
     # walking, so the shape of this dict is now a routing knob, not just an ordering.
+    # Never swept before 2026-08-14: a constant at its first-commit default is not
+    # a tuned constant.
+    "CF50": {"CASH_FLOOR": 50},
+    "CF1000": {"CASH_FLOOR": 1000},
+    "FD1": {"FEED_DAYS": 1},
+    "FD2": {"FEED_DAYS": 2},
+    "FD5": {"FEED_DAYS": 5},
+    "LR0": {"LAND_RESERVE": 0},
+    "LR3000": {"LAND_RESERVE": 3000},
     "PC-flat": {"PRIO_COST": {0: -900, 1: -800, 2: -700, 3: -600, 4: -500, 5: -400, 6: -650}},
     "PC-steep": {"PRIO_COST": {0: -1800, 1: -1400, 2: -1000, 3: -600, 4: -440, 5: -240, 6: -520}},
     "PC-feed": {"PRIO_COST": {0: -1400, 1: -700, 2: -500, 3: -300, 4: -220, 5: -120, 6: -260}},
