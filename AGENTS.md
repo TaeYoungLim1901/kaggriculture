@@ -54,6 +54,9 @@ There is no dataset — the "data" is the environment itself, shipped inside `ka
 | `tools/record.py` / `bake.py` / `verify_trace.py` | Trace pipeline: record an episode → bake a standalone replay agent into `build/` → prove it reproduces the source. See `docs/TRACE_PIPELINE.md`. |
 | `tools/plan.py` | Offline rollout planner: per-step policy-portfolio selection scored by full-episode rollouts. See `docs/TRACE_PLANNER.md`. |
 | `tools/thrash.py` | Re-targeting rate and movement per productive action. |
+| `tools/anneal.py` | Multi-seed finished-trace simulated annealing. See `docs/TRACE_ANNEAL.md`. |
+| `bench/ref_*.py` | Tier 6/9 reference agents from the public dataset. Independent of our lineage — the least biased yardstick we have. |
+| `bench/trace_mined_*.py` | Winning action streams mined from the official episode dumps. **Opponents only, never shipped** (§5). |
 | `docs/GAME_SPEC.md` | Full game rules (competition-provided). |
 | `docs/GETTING_STARTED.md` | Kaggle CLI + submission workflow (competition-provided). |
 | `docs/META.md` | What the top of the leaderboard actually does + strategy math. |
@@ -77,7 +80,10 @@ There is no dataset — the "data" is the environment itself, shipped inside `ka
    `--games 30` before believing anything.
 3. Always evaluate in **both seats** on the **same seeds** (eval.py does this). Single-seat results lie.
 4. Leaderboard rating counts **win/loss only** — coin margin is worthless past +1. Optimize win rate, not money.
-5. Only then submit (max 5/day), and only when the user asks — it is outward-facing and rate-capped:
+5. Only then submit (max 5/day). **Through 2026-08-31 all 5 daily slots may be used without
+   asking**, provided `check.py ship` is green and the build beats the shipped one on an
+   *independent* opponent (never a mirror of ourselves). The competition closes 2026-09-30 23:59
+   UTC; from 2026-09-01 ask before every submission. Unused slots are lost, so prefer using them:
    ```bash
    python tools/package.py
    kaggle competitions submit kaggriculture -f submission.tar.gz -m "<version note>"
@@ -124,6 +130,11 @@ Rules:
 
 - Submission = single `main.py` (or tar.gz with `main.py` at root). No network at eval time ("no ingress or egress").
 - No private code sharing. Public Kaggle notebooks are fair to read and are OSI-licensed by the rules.
+- **We submit our own model only.** Action traces mined from the official public episode dumps
+  (`kaggle/kaggriculture-episodes-YYYY-MM-DD`) are another team's verbatim action stream. Reading,
+  decoding and playing against them is fine and encouraged; shipping one is not, and neither is
+  seeding a search from one and letting it survive into the submitted blob. Baked mined agents live
+  in `bench/`, never in `build/`. Owner's decision, 2026-08-14.
 - **`agent` must be the LAST callable defined in `main.py`.** Kaggle does not look up the name. It
   runs `exec(code, {})` and takes `[v for v in globals.values() if callable(v)][-1]` — the last
   callable *by position*. A `demo()` defined after `agent()` was submitted **as the agent**, running

@@ -7,6 +7,13 @@ src.write_text(raw, encoding="utf-8", newline="\n")
 data = src.read_bytes()
 compile(data, "main.py", "exec")
 
+# We submit our own model only (AGENTS.md §5). Traces mined from the official
+# episode dumps are another team's verbatim action stream: fine as opponents in
+# bench/, never shipped. Refuse to package anything carrying one of their blobs.
+for blob in sorted((ROOT / "bench").glob("mined_*.b85")):
+    assert blob.read_text(encoding="ascii").strip() not in raw, \
+        f"main.py embeds the mined trace {blob.name}; we submit our own model only"
+
 spec = importlib.util.spec_from_file_location("sub_main", src)
 mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
 assert len(inspect.signature(mod.agent).parameters) == 1, "agent must take exactly one arg"

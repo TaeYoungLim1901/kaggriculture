@@ -47,8 +47,13 @@ SHED_TILES = [(4, 4), (5, 4), (4, 5), (5, 5)]
 CASH_FLOOR = 250            # absolute minimum cash
 FEED_DAYS = 3               # days of wheat feed to keep funded before any purchase
 SEED_BATCH = 3              # max seeds of one crop bought per turn
-ANIMAL_PLAN = ["SHEEP"] * 6 + ["COW"] * 8   # 14 structures + 11 crops = 25 tiles
-CROP_PLAN = [("MELON", 6), ("WHEAT", 5)]   # crop -> tiles to keep planted
+# A SMALLER herd beats a bigger one: MILK hits its price floor after 76 units and
+# WOOL after 59 (reference-agents price_curves.csv), so 14 animals overproduce into
+# a floored market and eat the wheat feed. Cutting to 11 frees tiles for berries.
+# Measured vs the meta bench, 24 seeds x 2 seats: shipped 14-animal build -86,140,
+# this build -72,376. See docs/SWEEP_DERIVED.md.
+ANIMAL_PLAN = ["SHEEP"] * 4 + ["COW"] * 7   # 11 structures + 14 crops = 25 tiles
+CROP_PLAN = [("STRAWBERRY", 8), ("WHEAT", 6)]   # crop -> tiles to keep planted
 HIRES = 8                   # per day; cost is fib(n), so 8 hands total $54
 LAND_TARGET = 1             # quadrants to own; measured: expansion loses money
                             # at our routing efficiency (see docs/META.md §5)
@@ -56,11 +61,14 @@ LAND_RESERVE = 1000         # cash kept back after a land purchase
 ANIMAL_RESERVE = 0          # animals ahead to hold cash for before seeds/land
 PLANT_CAP = False           # cap PLANT tasks at seeds actually on hand
 STICKY = False              # keep a moving unit's target until it arrives
+BUNDLE = False              # persist short local work queues with deadline preemption
 # Task value by priority; strictly dominates travel distance (max ~18 tiles).
 PRIO_COST = {0: -900, 1: -700, 2: -500, 3: -300, 4: -220, 5: -120, 6: -260}
 DIST_WEIGHT = 1
 _STICKY_TARGETS = {}
 _STICKY_LAST_STEP = None
+_BUNDLES = {}
+_BUNDLE_LAST_STEP = None
 
 
 def _g(o, k, d=None):
@@ -349,6 +357,176 @@ def _sticky_plan(plan, units, invs, tasks, step):
     return plan
 
 
+def _bundle_refresh(scan, day, invs, shed, step):
+    """Drop completed/disappeared queue entries; keep the rest boundedly persistent."""
+    global _BUNDLE_LAST_STEP
+    if _BUNDLE_LAST_STEP is not None and step <= _BUNDLE_LAST_STEP:
+        _BUNDLES.clear()
+    _BUNDLE_LAST_STEP = step
+    animals = {p: t for p, t in scan["animals"]}
+    plants = {p: t for p, t in scan["plants"]}
+    for i, queue in list(_BUNDLES.items()):
+        inv = invs[i] if i < len(invs) else {}
+        wheat = inv.get("WHEAT", 0)
+        fertilizer = inv.get("FERTILIZER", 0)
+        kept = []
+        for goal, action in queue:
+            verb = action[0]
+            if verb == "PICKUP":
+                valid = shed.get(action[1], 0) > 0
+                if valid and action[1] == "WHEAT":
+                    wheat += min(action[2] if len(action) > 2 else 1, shed["WHEAT"])
+            elif goal in animals:
+                animal = animals[goal]
+                valid = {
+                    "FEED": not animal.get("fed_today") and wheat > 0,
+                    "HARVEST": animal.get("yield_units", 0) > 0,
+                    "CARE": not animal.get("cared_today"),
+                    "COLLECT_FERTILIZER": animal.get("fertilizer_available"),
+                }.get(verb, False)
+                if valid and verb == "FEED":
+                    wheat -= 1
+            elif goal in plants:
+                plant = plants[goal]
+                crop = CROPS.get(plant.get("crop"), {})
+                age = day - plant.get("planted_day", day)
+                ripe = age >= (crop.get("first", 0) if crop.get("ongoing") else
+                               crop.get("max_day", 0))
+                valid = {
+                    "WATER": not plant.get("watered_today"),
+                    "FERTILIZE": (crop.get("ongoing") and
+                                   plant.get("fertilized_until_day", -1) < day and
+                                   fertilizer > 0),
+                    "HARVEST": ripe and plant.get("yield_units", 0) > 0,
+                }.get(verb, False)
+                if valid and verb == "FERTILIZE":
+                    fertilizer -= 1
+            else:
+                valid = False
+            if valid:
+                kept.append((goal, action))
+        if kept:
+            _BUNDLES[i] = kept
+        else:
+            _BUNDLES.pop(i, None)
+
+
+def _bundle_deadlines(scan, day):
+    urgent = []
+    for pos, animal in scan["animals"]:
+        if not animal.get("fed_today"):
+            urgent.append((0, pos, "FEED"))
+    for pos, plant in scan["plants"]:
+        crop = CROPS.get(plant.get("crop"))
+        if crop is None or plant.get("watered_today"):
+            continue
+        age = day - plant.get("planted_day", day)
+        if plant.get("consecutive_unwatered", 0) >= 1 or age >= crop["max_day"] // 2:
+            urgent.append((1, pos, "WATER"))
+    return urgent
+
+
+def _bundle_preempt(scan, day, units, excluded):
+    """Free only enough persistent workers to cover missing hard-deadline work."""
+    urgent = _bundle_deadlines(scan, day)
+    covered = {
+        (goal, action[0])
+        for queue in _BUNDLES.values()
+        for goal, action in queue
+        if action[0] in {"FEED", "WATER"}
+    }
+    for _, goal, verb in urgent:
+        if (goal, verb) in covered:
+            continue
+        candidates = [
+            i for i in _BUNDLES
+            if i not in excluded and i < len(units)
+        ]
+        if not candidates:
+            break
+        i = min(candidates, key=lambda j: _dist(units[j], goal))
+        _BUNDLES.pop(i, None)
+
+
+def _bundle_make(primary, unit, unit_pos, owners, scan, day, inv, shed, claimed):
+    """Turn one Hungarian assignment into a local animal or crop queue."""
+    goal, first_action = primary
+    if tuple(unit_pos) != tuple(goal):
+        return None
+    animals = {p: t for p, t in scan["animals"]}
+    plants = {p: t for p, t in scan["plants"]}
+    if goal in animals:
+        local = [(p, t) for p, t in scan["animals"]
+                 if p[0] // 5 == goal[0] // 5 and p[1] // 5 == goal[1] // 5
+                 and _dist(p, goal) == 0]
+        groups = {"FEED": [], "HARVEST": [], "CARE": [], "COLLECT_FERTILIZER": []}
+        for pos, animal in local:
+            if not animal.get("fed_today"):
+                groups["FEED"].append((pos, ["FEED"]))
+            if animal.get("yield_units", 0) > 0:
+                groups["HARVEST"].append((pos, ["HARVEST"]))
+            if not animal.get("cared_today"):
+                groups["CARE"].append((pos, ["CARE"]))
+            if animal.get("fertilizer_available"):
+                groups["COLLECT_FERTILIZER"].append((pos, ["COLLECT_FERTILIZER"]))
+        order = ["FEED", "HARVEST", "CARE", "COLLECT_FERTILIZER"]
+        queue = []
+        feed = []
+        for verb in order:
+            for pos, action in groups[verb]:
+                key = (pos, verb)
+                if owners.get(key) not in (None, unit):
+                    continue
+                if key in claimed:
+                    continue
+                if verb == "FEED":
+                    feed.append((pos, action, key))
+                else:
+                    queue.append((pos, action))
+                    claimed.add(key)
+        wheat = inv.get("WHEAT", 0)
+        pickup = (min(6, shed.get("WHEAT", 0), max(0, len(feed) - wheat))
+                  if first_action[0] == "FEED" else 0)
+        if pickup:
+            queue.insert(0, (min(SHED_TILES, key=lambda p: _dist(goal, p)),
+                             ["PICKUP", "WHEAT", pickup]))
+            wheat += pickup
+        feed = feed[:wheat]
+        claimed.update(item[2] for item in feed)
+        queue[1 if pickup else 0:1 if pickup else 0] = [
+            (pos, action) for pos, action, _ in feed
+        ]
+        return queue if first_action[0] in {"FEED", "HARVEST", "CARE", "COLLECT_FERTILIZER"} else None
+    if goal in plants:
+        local = [(p, t) for p, t in scan["plants"]
+                 if p[0] // 5 == goal[0] // 5 and p[1] // 5 == goal[1] // 5
+                 and _dist(p, goal) == 0]
+        groups = {"WATER": [], "FERTILIZE": [], "HARVEST": []}
+        for pos, plant in local:
+            crop = CROPS.get(plant.get("crop"))
+            if crop is None:
+                continue
+            age = day - plant.get("planted_day", day)
+            if not plant.get("watered_today"):
+                groups["WATER"].append((pos, ["WATER"]))
+            if (crop["ongoing"] and plant.get("fertilized_until_day", -1) < day
+                    and inv.get("FERTILIZER", 0) > 0):
+                groups["FERTILIZE"].append((pos, ["FERTILIZE"]))
+            ripe = age >= (crop["first"] if crop["ongoing"] else crop["max_day"])
+            if ripe and plant.get("yield_units", 0) > 0:
+                groups["HARVEST"].append((pos, ["HARVEST"]))
+        queue = []
+        for verb in ("WATER", "FERTILIZE", "HARVEST"):
+            for pos, action in groups[verb]:
+                key = (pos, verb)
+                if owners.get(key) not in (None, unit):
+                    continue
+                if key not in claimed:
+                    queue.append((pos, action)); claimed.add(key)
+        return queue if first_action[0] in {"WATER", "FERTILIZE", "HARVEST"} else None
+    return None
+
+
 def _drip(daily, hour):
     """This turn's share of a daily sell quota, spread evenly over SELL_HOURS.
 
@@ -363,7 +541,7 @@ def _drip(daily, hour):
     return (i + 1) * daily // n - i * daily // n
 
 
-def _market(farm, private, scan, day, hour, market_prices, todo, build_want):
+def _market(farm, private, scan, day, hour, market_prices, todo, build_want, wheat_pickup=0):
     money = _g(farm, "money", 0)
     shed = _g(private, "shed", {}) or {}
     seeds = _g(private, "seeds", {}) or {}
@@ -384,8 +562,8 @@ def _market(farm, private, scan, day, hour, market_prices, todo, build_want):
                  else sorted(DRAIN, key=lambda k: -BASE[k]))
         for item in items:
             have = shed.get(item, 0)
-            if item == "WHEAT" and not dump:
-                have -= n_animals * 2      # keep feed in reserve
+            if item == "WHEAT":
+                have -= wheat_pickup + (n_animals * 2 if not dump else 0)  # keep pickup and feed in reserve
             if have <= 0 or len(orders) >= 9:
                 continue
             price = market_prices.get(item, BASE[item])
@@ -477,6 +655,9 @@ def _act(obs):
     todo, build_want, plant_want = _wanted(scan, seeds)
     tasks = _tasks(scan, day, plant_want, build_want)
 
+    if BUNDLE:
+        _bundle_refresh(scan, day, invs, shed, day * 24 + hour)
+
     # Errands first: an animal in the shed and wheat in the shed both earn nothing.
     errand = {}
     open_struct = [(p, t.get("kind")) for p, t in scan["structs"]]
@@ -505,11 +686,30 @@ def _act(obs):
             errand[i] = (door, ["PICKUP", "WHEAT", n])
             to_carry -= n
 
-    rest = [i for i in range(len(units)) if i not in errand]
+    if BUNDLE:
+        for i in errand:
+            _BUNDLES.pop(i, None)
+        _bundle_preempt(scan, day, units, set(errand))
+
+    rest = [i for i in range(len(units))
+            if i not in errand and (not BUNDLE or i not in _BUNDLES)]
     plan = _assign([units[i] for i in rest], [invs[i] for i in rest], tasks)
     plan = {rest[k]: v for k, v in plan.items()}
+    if BUNDLE:
+        owners = {(tuple(goal), action[0]): i for i, (goal, action) in plan.items()}
+        claimed = set()
+        for i in sorted(plan):
+            queue = _bundle_make((plan[i][0], plan[i][1]), i, units[i], owners, scan, day,
+                                 invs[i], shed, claimed)
+            if queue:
+                _BUNDLES[i] = queue
+                plan[i] = queue[0]
+        for i, queue in _BUNDLES.items():
+            if i not in errand and queue:
+                plan[i] = queue[0]
     plan.update(errand)
-    _sticky_plan(plan, units, invs, tasks, day * 24 + hour)
+    if not BUNDLE:
+        _sticky_plan(plan, units, invs, tasks, day * 24 + hour)
 
     acts = []
     for i, pos in enumerate(units):
@@ -518,12 +718,20 @@ def _act(obs):
             acts.append(["PASS"])
             continue
         goal, action = plan[i]
-        if STICKY:
+        if STICKY and not BUNDLE:
             _STICKY_TARGETS[i] = (goal, action)
-        acts.append(action if tuple(pos) == tuple(goal) else _step_toward(pos, goal))
+        if tuple(pos) == tuple(goal):
+            acts.append(action)
+            if BUNDLE and i in _BUNDLES and _BUNDLES[i] and _BUNDLES[i][0] == (goal, action):
+                _BUNDLES[i].pop(0)
+                if not _BUNDLES[i]:
+                    _BUNDLES.pop(i)
+        else:
+            acts.append(_step_toward(pos, goal))
 
+    wheat_pickup = sum(a[2] for a in acts if len(a) >= 3 and a[:2] == ["PICKUP", "WHEAT"])
     market = _market(farm, private, scan, day, hour, _g(_g(obs, "market", {}) or {}, "prices", {}) or {},
-                     todo, build_want)
+                     todo, build_want, wheat_pickup)
     return {"farmer": acts[0] if acts else ["PASS"], "hands": acts[1:], "market": market}
 
 

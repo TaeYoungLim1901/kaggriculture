@@ -15,6 +15,15 @@ def executed_sell(prev, current, item):
 
     End-of-day drops happen in the same transition, so include inventories
     visible in the previous frame when the day rolls over.
+
+    ESTIMATE, NOT A COUNT. The shed delta also moves for BUY_PRODUCT, PICKUP,
+    PLACE and FEED in the same turn, so the `requested -> executed` line below
+    UNDERSTATES executions whenever we buy or pick up the same item we sell.
+    Measured 2026-08-14: this reported `WHEAT 330->198` while the environment's
+    own order loop recorded 325 attempts, 324 successes, 1 rejection. Do not
+    chase a gap seen here without confirming it by instrumenting `_commit_unit`
+    in the environment source. See also: the OPP column is unreliable for the
+    same reason.
     """
     if prev is None:
         return 0

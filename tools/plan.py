@@ -64,19 +64,33 @@ def _key(action):
     return json.dumps(action, sort_keys=True, separators=(",", ":"), default=str)
 
 
-def _money(obs):
+def _money(obs, player=0):
+    # obs.farms is one shared list indexed by player id, not seat-relative.
     farms = _get(obs, "farms", []) or []
-    farm = farms[0] if farms else {}
+    farm = farms[player] if player < len(farms) else {}
     return float(_get(farm, "money", 0) or 0)
 
 
-def _partial_score(obs):
+def _partial_score(obs, player=0):
     private = _get(obs, "private", {}) or {}
     shed = _get(private, "shed", {}) or {}
     market = _get(obs, "market", {}) or {}
     prices = _get(market, "prices", {}) or {}
-    return _money(obs) + sum(float(n or 0) * float(_get(prices, item, 0) or 0)
-                             for item, n in shed.items())
+    return _money(obs, player) + sum(float(n or 0) * float(_get(prices, item, 0) or 0)
+                                     for item, n in shed.items())
+
+
+def _reward(env, seat):
+    return float(env.steps[-1][seat].reward or 0)
+
+
+def _margin(env, truncated):
+    """Rating is win/loss, so score the gap, not our own money. Both seats sell
+    into one shared market: maximising seat-0 money alone handed the opponent
+    +15,746 on the seed-90001 run and lost 3,551 of margin."""
+    if truncated:
+        return _partial_score(_obs(env, 0), 0) - _partial_score(_obs(env, 1), 1)
+    return _reward(env, 0) - _reward(env, 1)
 
 
 def _rollout(task):
@@ -95,8 +109,7 @@ def _rollout(task):
             break
         env.step([_call(continuation_agent, _obs(env, 0)),
                   _call(opponent_agent, _obs(env, 1))])
-    obs = _obs(env, 0)
-    score = _partial_score(obs) if truncated else _money(obs)
+    score = _margin(env, truncated)
     return score, time.perf_counter() - started, len(env.steps) - before
 
 
@@ -127,7 +140,7 @@ def plan(args):
 
     env = make("kaggriculture", configuration={"episodeSteps": EPISODE_STEPS, "seed": args.seed})
     env.reset(2)
-    plan_limit = min(args.horizon, EPISODE_STEPS)
+    plan_limit = min(args.horizon, args.steps or args.horizon, EPISODE_STEPS)
     actions = []
     proposals_seen = unique_seen = rollout_count = zero_rollout_steps = 0
     rollout_steps = rollout_cpu = 0.0
@@ -208,10 +221,14 @@ def main():
     parser.add_argument("--out", required=True, help="stage-1-compatible .b85 output")
     parser.add_argument("--horizon", type=int, default=EPISODE_STEPS,
                         help="rollout length; values below 720 also plan only that prefix")
+    parser.add_argument("--steps", type=int, default=None,
+                        help="optional planning-prefix cap (default: horizon)")
     parser.add_argument("--jobs", type=int, default=min(os.cpu_count() or 1, 8))
     args = parser.parse_args()
     if args.horizon < 1:
         parser.error("--horizon must be at least 1")
+    if args.steps is not None and args.steps < 1:
+        parser.error("--steps must be at least 1")
     if args.jobs < 1:
         parser.error("--jobs must be at least 1")
     plan(args)
