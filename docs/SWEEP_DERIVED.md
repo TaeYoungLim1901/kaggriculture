@@ -408,3 +408,34 @@ ranks these ideas 1-3; they are answered. The exact min-cost matching with `DIST
 already the right policy, and every spatial or temporal constraint on it costs more than it saves.
 The remaining `movement/productive` of 1.97 is the cost of a genuinely distributed task set, not
 thrash — the code was reverted rather than left behind a zero default.
+
+## 2026-08-15: the crop plan wants wheat, and the limit is total tiles
+
+`LAST_DAY = 15` changed the economics enough that the crop plan needed re-tuning — the same rule that
+caught the herd after the sell throttle came off. Under `LAST_DAY = 29`, 16 wheat tiles lost 4W-28L.
+Under 15 it wins 32W-0L. Wheat is the price weapon, so the plan wants as much of it as the board
+carries.
+
+32 paired episodes, against 4 strawberry + 12 wheat:
+
+| crop plan | tiles | W-L | mean margin |
+| --- | ---: | --- | ---: |
+| 4 berry + 9 wheat | 13 | 0W-32L | -3,367 |
+| 4 + 16 | 20 | 32W-0L | +1,613 |
+| 4 + 20 | 24 | 32W-0L | +2,474 |
+| 4 + 24 | 28 | 32W-0L | +2,991 |
+| 4 + 26 | 30 | 0W-32L | **-15,208** |
+| 8 + 20 | 28 | 0W-32L | -4,653 |
+
+The cliff is not the wheat count: **28 total crop tiles works and 30 does not**, whatever the mix.
+Ten hands cannot water and harvest more than about 28 tiles on top of 13 animals. Within that budget,
+against 4 + 24: 0 berry + 28 wheat +800, 1 + 27 +904, **2 + 26 +2,735**, and 2 + 28 (30 tiles) loses
+again. Shipped: **2 STRAWBERRY + 26 WHEAT**.
+
+Re-checked under the new plan and unchanged: `HIRES` 12 is 0W-32L, 5S+9C is 7W-25L, `LAST_DAY` 10 is
+5W-27L and 20 is 0W-32L.
+
+v14 vs v13 **32W-0L +5,735 worst +4,365**. vs `bench/v3.py` **32W-0L +14,993**, the first clean sweep
+of it. `ref_broker_bea` **-58,898**, the best margin the lineage has recorded (v7 -62,684).
+Against the two strongest benches it is mixed: meta bench -60,454 against v13's -53,629, mined trace
+92791997 -31,664 against v13's -38,133. All four stages green.

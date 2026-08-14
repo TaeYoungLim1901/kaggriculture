@@ -83,7 +83,18 @@ SEED_BATCH = 5
 # Do not read Optuna rankings straight off: trial 82 reported +2,112 at 16 episodes
 # and measured -373 at 32. Only trials re-confirmed at 32 belong here.
 ANIMAL_PLAN = ['SHEEP', 'SHEEP', 'SHEEP', 'SHEEP', 'SHEEP', 'COW', 'COW', 'COW', 'COW', 'COW', 'COW', 'COW', 'COW']
-CROP_PLAN = [('STRAWBERRY', 4), ('WHEAT', 12)]
+# Wheat is the price weapon (see LAST_DAY), so the plan wants as much of it as the
+# board and the seed budget will carry. 32 paired episodes against 12 wheat tiles:
+# 9 is 0W-32L -3,367 / 16 is 32W-0L +1,613 / 20 is 32W-0L +2,474 / 24 is 32W-0L
+# +2,991 worst +1,641 / 28 is 0W-32L -8,639. Berries do not want the room: 8
+# strawberry with 20 wheat is 0W-32L.
+# The binding limit is TOTAL crop tiles, not the wheat count: 4 berry + 24 wheat and
+# 2 berry + 26 wheat both work at 28 tiles, while 4 + 26 collapses to 0W-32L -15,208
+# at 30. Ten hands cannot water and harvest more than about 28 tiles on top of 13
+# animals. Within that budget wheat wins the room -- it is the price weapon (see
+# LAST_DAY) and its price does not floor. 32 paired episodes: 0 berry +800 /
+# 1 +904 / 2 +2,735 / 4 baseline / 8 with 20 wheat 0W-32L.
+CROP_PLAN = [("STRAWBERRY", 2), ("WHEAT", 26)]   # crop -> tiles to keep planted
 HIRES = 10                  # per day; wage is sum(fib(0..n-1)), so 10 hands $88/day
                             # measured from 11: 10 is 24W-8L +1,034, 12 is 0W-32L
 HIRE_SLOTS = 2              # market slots a single turn may spend on HIRE past 8
