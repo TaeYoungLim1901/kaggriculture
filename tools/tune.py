@@ -98,7 +98,7 @@ def parse_stages(raw, games):
             stages = [int(part) for part in raw.split(",")]
         except ValueError as exc:
             raise ValueError("--stages must be comma-separated positive integers") from exc
-    elif games is not None:
+    elif games != STAGES[0]:
         stages = [games]
     else:
         stages = STAGES[:]
@@ -129,15 +129,15 @@ def print_trial(trial, stages):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--trials", type=int, default=20)
-    ap.add_argument("--games", type=int, default=None,
-                    help=f"single-stage budget (default ladder starts at {STAGES[0]})")
+    ap.add_argument("--games", type=int, default=STAGES[0],
+                    help="single-stage budget; the default uses STAGES")
     ap.add_argument("--stages", help="comma-separated games per stage")
     ap.add_argument("--opp", default=OPP)
     ap.add_argument("--study", default="kaggri")
     ap.add_argument("--jobs", type=int, default=1)
     ap.add_argument("--seed0", type=int, default=sweep.SEED0)
     args = ap.parse_args()
-    if args.jobs < 1 or args.trials < 1 or (args.games is not None and args.games < 1):
+    if args.jobs < 1 or args.games < 1 or args.trials < 1:
         ap.error("--trials, --games, and --jobs must be at least 1")
     try:
         args.stages = parse_stages(args.stages, args.games)
@@ -147,21 +147,22 @@ def main():
     storage = f"sqlite:///{DB.as_posix()}"
     study = optuna.create_study(storage=storage, study_name=args.study,
                                 load_if_exists=True, direction="maximize",
-                                pruner=optuna.pruners.SuccessiveHalvingPruner())
+                                pruner=optuna.pruners.SuccessiveHalvingPruner(
+                                    min_resource=1, reduction_factor=2))
     study.optimize(lambda trial: objective(trial, args), n_trials=args.trials)
 
     complete = [t for t in study.trials
                 if t.state == optuna.trial.TrialState.COMPLETE]
     print(f"\nStudy {args.study}: {len(study.trials)} trials, {len(complete)} complete")
-    if not complete:
-        print("No completed trials.")
-        return 0
-    best = study.best_trial
-    print(f"Best trial {best.number}: value={best.value}, "
-          f"win_rate={best.user_attrs.get('win_rate')}%")
-    print(f"  params={best.params}")
-    print("Top 5 trials:")
     attempted = [t for t in study.trials if "stage_reached" in t.user_attrs]
+    if complete:
+        best = study.best_trial
+        print(f"Best trial {best.number}: value={best.value}, "
+              f"win_rate={best.user_attrs.get('win_rate')}%")
+        print(f"  params={best.params}")
+    else:
+        print("No completed trials.")
+    print("Top 5 trials:")
     for trial in sorted(attempted, key=trial_value, reverse=True)[:5]:
         print_trial(trial, args.stages)
     return 0

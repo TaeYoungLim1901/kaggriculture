@@ -72,7 +72,8 @@ SEED_BATCH = 5
 # and measured -373 at 32. Only trials re-confirmed at 32 belong here.
 ANIMAL_PLAN = ['SHEEP', 'SHEEP', 'SHEEP', 'SHEEP', 'SHEEP', 'COW', 'COW', 'COW', 'COW', 'COW', 'COW', 'COW', 'COW']
 CROP_PLAN = [('STRAWBERRY', 4), ('WHEAT', 12)]
-HIRES = 11
+HIRES = 10                  # per day; wage is sum(fib(0..n-1)), so 10 hands $88/day
+                            # measured from 11: 10 is 24W-8L +1,034, 12 is 0W-32L
 HIRE_SLOTS = 2              # market slots a single turn may spend on HIRE past 8
 # Of the 10 hour-0 order slots, how many go to HIRE; the rest of the crew is topped
 # up from hour 1 at HIRE_SLOTS per turn. Hour 0 sells into the fullest shed of the
