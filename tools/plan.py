@@ -88,8 +88,13 @@ def _rollout(task):
     truncated = horizon < EPISODE_STEPS - current
     if truncated:
         env.configuration["episodeSteps"] = current + horizon + 1
-    if not env.done:
-        env.run([continuation, opponent])
+    continuation_agent = _load(continuation, "rollout_continuation")
+    opponent_agent = _load(opponent, "rollout_opponent")
+    for _ in range(max(0, min(horizon, EPISODE_STEPS - current) - 1)):
+        if env.done:
+            break
+        env.step([_call(continuation_agent, _obs(env, 0)),
+                  _call(opponent_agent, _obs(env, 1))])
     obs = _obs(env, 0)
     score = _partial_score(obs) if truncated else _money(obs)
     return score, time.perf_counter() - started, len(env.steps) - before

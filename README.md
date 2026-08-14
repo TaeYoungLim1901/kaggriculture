@@ -66,6 +66,13 @@ fails with `403 Forbidden` on `CreateSubmission`.
 720-step episode in **both seats** without raising, and emits structurally valid actions on every
 step. It never submits — that stays a human action.
 
+## Repository
+
+The [GitHub repository](https://github.com/TaeYoungLim1901/kaggriculture) is private. Git ignores
+`__pycache__/`, `*.pyc`, `.sweep/`, `build/`, and `submission.tar.gz` because they are generated and
+regenerable by the project tools; source, docs, tests, benchmarks, and research notebooks remain
+tracked. Upload changes with `python tools/sync.py "message"`.
+
 ## Method
 
 `docs/FRAMEWORK.md` is the transferable part: how ontology, action logic, set algebra, graph matching,
