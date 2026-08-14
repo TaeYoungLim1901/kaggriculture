@@ -255,3 +255,39 @@ dumping early frees shed room but carries no price advantage of its own.
 Optuna (`tools/tune.py`, study `v6mirror`) put `LAND_TARGET = 2` in all five of its top trials, but at
 8 episodes per trial its winners collapse when re-measured at 32 (`T33-F4` 2W-14L, `T46` worst
 -13,909). Re-run the study at a larger `--games` before believing any row of it.
+
+## 2026-08-14 (5): expansion wins once the throttle is gone
+
+Every earlier test said two quadrants lose. They were all run under the sell throttle, and part of
+expansion's cost was flooding a market we were simultaneously metering. With `DRAIN_SCALE = 999` the
+answer flips. Found by the Optuna study `v9mirror` (`tools/tune.py`, 100 trials against a frozen
+`main.py`, all five top trials converging on the same shape) and confirmed at 32 episodes.
+
+v10: `LAND_TARGET = 2`, `ANIMAL_PLAN` 5 SHEEP + 8 COW, `CROP_PLAN` 4 STRAWBERRY + 12 WHEAT,
+`HIRES = 10`, `HIRE_HOUR0 = 5`, `ANIMAL_RESERVE = 2`, `ANIMAL_PIPELINE = 5`, `SEED_BATCH = 5`.
+The plan needs the second quadrant outright: 13 structures + 16 crops = 29 tiles against NW's 25.
+
+| opponent | v10 | v7 (shipped) |
+| --- | ---: | ---: |
+| `bench/v3.py` | **24W-8L, +7,563** | 18W-14L, -1,499 |
+| shipped v7 | **30W-2L, +4,601** | — |
+| `ref_broker_bea` | -64,111 (worst -85,425) | -62,684 (worst -94,870) |
+| `ref_closer_cleo` | -64,246 (worst -82,057) | -61,811 (worst -91,481) |
+
+The references cost ~2k of mean margin and return a much better worst case; we lose to both 0W-32L
+either way, so only the same-lineage columns carry information about the ladder. v7 scored **737.9**,
+the best reading any build in this lineage has had, which is the evidence for trusting them.
+
+**It is a local optimum in every direction tested**, 32 episodes each, one knob at a time against the
+build in the tree: `HIRES` 11 (24W-8L against it) and 12 (0W-32L), `HIRE_HOUR0` 4 (6W-26L), herd
+5S+7C (10W-22L) / 5S+9C (7W-25L) / 7S+8C (6W-26L), wheat 9 (0W-32L) / 16 (4W-28L), strawberry 8
+(0W-32L), `LAND_TARGET` 3 (0W-32L), `ANIMAL_PIPELINE` 4 (13W-19L).
+
+### Why FERT_RESERVE works, and it is not fertilizer
+
+Reserving fertilizer does not raise the FERTILIZE count (162 -> 156) because the berries were already
+at full coverage, and `_act` runs its unit actions before `_market` anyway. The reserve is applied
+*after* the sell list is sorted, so zeroing fertilizer's quantity drops its order entirely and
+**shifts every later SELL one slot earlier** — the same order-slot race as above. Also worth
+recording: the "reverse test agrees" argument is not independent evidence, it relabels the same
+paired games. A 27-5 split with a +35 mean is consistent with many tiny wins and a few larger losses.
