@@ -390,3 +390,21 @@ was written; `LAST_DAY` only made it cross the 5% threshold.
 
 v13 = LAST_DAY 15 + that fix. 32 paired episodes: vs v12 **32W-0L +4,879 worst +1,780**,
 `bench/v4.py` **32W-0L +17,111**, `bench/v3.py` 26W-6L +9,619, `ref_broker_bea` -61,768.
+
+## Routing, closed: constraining the matching always loses
+
+Four independent attempts to stop units roaming, each 32 paired episodes against the shipped build:
+
+| variant | W-L | mean margin |
+| --- | --- | ---: |
+| `STICKY` — hard target lock until arrival | 0W-32L | -15,861 |
+| `BUNDLE` — persistent local work queues | 5W-27L | -963 |
+| soft hysteresis on the current target, 50 / 100 / 200 | 5W-27L / 0W-32L / 0W-32L | -1,647 / -3,362 / -2,814 |
+| home-zone rosters, 2 / 3 / 4 zones at penalty 300 | 5W-27L / 0W-32L / 0W-32L | -1,184 / -3,324 / -5,111 |
+| home-zone rosters, 3 zones at penalty 100 | 1W-31L | -930 |
+
+The zone variant exempted FEED and WATER from the penalty and still lost. `docs/RESEARCH_IDEAS.md`
+ranks these ideas 1-3; they are answered. The exact min-cost matching with `DIST_WEIGHT = 20` is
+already the right policy, and every spatial or temporal constraint on it costs more than it saves.
+The remaining `movement/productive` of 1.97 is the cost of a genuinely distributed task set, not
+thrash — the code was reverted rather than left behind a zero default.
