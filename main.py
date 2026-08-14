@@ -52,7 +52,16 @@ DRAIN_SCALE = 999.0
 # sell order, and that one order is worth +4,244 (16W-0L). Do not fund it by hiring
 # less: HIRES 6 falls to +1,814 and HIRES 4 to -13,484.
 SELL_HOURS = tuple(range(0, 24))
-LAST_DAY = 29                # unsold stock scores nothing, so liquidate
+# The day the reserves come off. `dump` is not really about liquidation any more --
+# DRAIN_SCALE already sells everything sellable every hour -- so all this switches
+# off is the wheat feed reserve and FERT_RESERVE. Pouring the wheat into a shared
+# order book depresses it for the opponent, who also grows wheat, while we buy ours
+# back at the price our own sale created. Roughly neutral for us, expensive for them,
+# which is why the margin gain is modest and the W-L is not: 32 paired episodes
+# against day 29 -- 27 31W-1L +967 / 24 32W-0L +1,439 / 20 32W-0L +2,384 /
+# 17 30W-2L +2,158 / 15 32W-0L +5,037 worst +1,875 / 12 32W-0L +4,601 /
+# 10 32W-0L +4,347. Peak at 15.
+LAST_DAY = 15
 
 SHED_CAP = 100
 SHED_TILES = [(4, 4), (5, 4), (4, 5), (5, 5)]
@@ -861,7 +870,13 @@ def _act(obs):
         else:
             acts.append(_step_toward(pos, goal))
 
-    wheat_pickup = sum(a[2] for a in acts if len(a) >= 3 and a[:2] == ["PICKUP", "WHEAT"])
+    # Count every wheat pickup we have COMMITTED to, not just the ones executing this
+    # turn. A unit walking to the shed emits a movement action, so summing `acts`
+    # missed it and `_market` was free to sell the wheat out from under it before it
+    # arrived -- 12 of 176 PICKUPs landed on an empty shed once LAST_DAY stopped
+    # reserving the feed.
+    wheat_pickup = sum(a[2] for _, a in errand.values()
+                       if len(a) >= 3 and a[:2] == ["PICKUP", "WHEAT"])
     market = _market(farm, private, scan, day, hour, _g(_g(obs, "market", {}) or {}, "prices", {}) or {},
                      todo, build_want, wheat_pickup)
     return {"farmer": acts[0] if acts else ["PASS"], "hands": acts[1:], "market": market}

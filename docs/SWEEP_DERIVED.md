@@ -358,3 +358,35 @@ re-targeting to a nearer task is the *correct* move, and any term that resists i
 hysteresis code was reverted rather than left behind a zero default.
 
 `ANIMAL_RESERVE` 2 also holds (1 is 0W-32L, 3 is a no-op) and `SEED_BATCH` no longer binds at all.
+
+## 2026-08-14 (7): LAST_DAY is not about liquidation
+
+`dump = day >= LAST_DAY` no longer means "sell the stock before the season ends" — `DRAIN_SCALE`
+already sells everything sellable every hour. All the flag still switches off is the **wheat feed
+reserve and `FERT_RESERVE`**. Pouring wheat into a shared order book depresses it for the opponent,
+who also grows wheat, while we buy ours back at the price our own sale created: roughly neutral for
+us, expensive for them. That is why the margin gain is modest and the W-L is not.
+
+32 paired episodes against `LAST_DAY = 29`:
+
+| LAST_DAY | W-L | mean margin | worst |
+| ---: | --- | ---: | ---: |
+| 27 | 31W-1L | +967 | -57 |
+| 24 | 32W-0L | +1,439 | +70 |
+| 20 | 32W-0L | +2,384 | +460 |
+| 17 | 30W-2L | +2,158 | -336 |
+| **15** | **32W-0L** | **+5,037** | **+1,875** |
+| 12 | 32W-0L | +4,601 | +794 |
+| 10 | 32W-0L | +4,347 | +523 |
+
+### The bug it exposed
+
+Dropping the feed reserve turned the `logic` stage red: `PICKUP` no-ops went to 12 of 176. The
+`wheat_pickup` reservation in `_market` summed the *actions being emitted this turn*, so it saw only
+units already standing at the shed door. A unit walking there emits a movement action, so its pickup
+was invisible and `_market` sold the wheat out from under it before it arrived. Summing the committed
+`errand` entries instead fixes it: 12/176 -> 2/166. The reservation had been under-counting since it
+was written; `LAST_DAY` only made it cross the 5% threshold.
+
+v13 = LAST_DAY 15 + that fix. 32 paired episodes: vs v12 **32W-0L +4,879 worst +1,780**,
+`bench/v4.py` **32W-0L +17,111**, `bench/v3.py` 26W-6L +9,619, `ref_broker_bea` -61,768.
