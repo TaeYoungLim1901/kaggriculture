@@ -338,3 +338,23 @@ The summary line's win rate is `W / (W + L + T)`, so a no-effect variant reports
 "34% win rate" and reads as a mild loss. `ANIMAL_RESERVE` 3 and `SEED_BATCH` 3 and 8 each reported
 `11W-11L-10T, +0, worst -1,280` with byte-identical per-seed money: all three are simply no-ops at
 the shipped plan. Read the mean margin first; a real effect looks like 30W-2L well clear of zero.
+
+## Routing: retargeting is not waste
+
+Units re-target 836 times before arrival per episode with a mean target survival of 2.36 turns, which
+looks like thrash. It is not. Three attempts to keep a unit on its target all lose, 32 paired episodes
+each against the shipped build:
+
+| variant | W-L | mean margin |
+| --- | --- | ---: |
+| `STICKY` (hard lock until arrival) | 0W-32L | -15,861 |
+| `BUNDLE` (persistent local queues) | 5W-27L | -963 |
+| soft hysteresis, bonus 50 to the current target | 5W-27L | -1,647 |
+| soft hysteresis, bonus 100 | 0W-32L | -3,362 |
+| soft hysteresis, bonus 200 | 0W-32L | -2,814 |
+
+Consistent with `DIST_WEIGHT = 20` being the thing that worked: once distance is priced properly,
+re-targeting to a nearer task is the *correct* move, and any term that resists it is a cost. The
+hysteresis code was reverted rather than left behind a zero default.
+
+`ANIMAL_RESERVE` 2 also holds (1 is 0W-32L, 3 is a no-op) and `SEED_BATCH` no longer binds at all.

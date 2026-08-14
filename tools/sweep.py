@@ -119,6 +119,7 @@ CONFIGS = {
     # walking, so the shape of this dict is now a routing knob, not just an ordering.
     # Never swept before 2026-08-14: a constant at its first-commit default is not
     # a tuned constant.
+    "STICKY": {"STICKY": True},
     "AR1": {"ANIMAL_RESERVE": 1},
     "AR3": {"ANIMAL_RESERVE": 3},
     "SB3": {"SEED_BATCH": 3},
