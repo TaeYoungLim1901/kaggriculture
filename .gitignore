@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+.sweep/
+build/
+submission.tar.gz
