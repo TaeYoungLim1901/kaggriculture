@@ -116,3 +116,142 @@ productive below 1.64 **and** productive above 1,703, measured with `tools/thras
 eval is run.
 
 See also `docs/SWEEP_METASCALE.md`, which reached the same wall from the other direction.
+
+## Correction, 2026-08-14: every `HIRES > 8` row above is void
+
+The extra-hire refill loop in `_market` had no slot budget and no affordability check:
+
+```python
+if hour > 0 and HIRES > 8 and len(orders) < 10:
+    hired = int(_g(farm, "hires_today", 8) or 0)
+    orders += [["HIRE"]] * min(max(0, HIRES - hired), 10 - len(orders))
+```
+
+`_do_hire` (`kaggriculture.py:689`) returns silently without advancing `hires_today` when
+`money < cost`, and the env accepts only `maxMarketOrdersPerTurn = 10` orders. So one broke hour
+deadlocks the season: HIRE fills all ten slots, no SELL goes out, no cash arrives, the hires keep
+failing, and the request repeats every hour for the rest of the day. Measured on seed 7 at
+`HIRES = 13`: **1,516 HIRE orders for the 390 wanted**, SELL 527 -> 336, money $70,267 -> $46,222,
+with day 4 hour 0 opening on $1 and 8 of 8 hires failing.
+
+Fixed with two guards — `HIRE_SLOTS = 2` per turn, cumulative `_fib` affordability against
+`CASH_FLOOR` — plus a herd gate (`not todo`), because days 1-10 run on $123-$588 and extra wage
+there starves `BUY_ANIMAL`/`BUY_SEED`. The mined top-ladder trace independently ramps to 13 hands
+only from d19. `HIRES = 8` never enters this branch, so the shipped build is byte-identical in
+behaviour (`check.py strength` 16W-0L, +81,856).
+
+The wage arithmetic above was also wrong. Cost is `sum(fib(0..n-1))` with `fib(0) = 0`, so the first
+hire is free: **8 hands is $33/day and 13 hands is $376/day**, not $54 and $609.
+
+Re-measured vs `bench/ref_broker_bea.py`, 8 seeds x 2 seats (BASE = -64,804):
+
+| config | mean margin | vs BASE |
+| --- | ---: | ---: |
+| `H13` (13 hands, 1 quadrant) | -74,850 | -10,046 |
+| `E2-H8` (2 quadrants, 8 hands) | -89,818 | -25,014 |
+| `E2-H12` (2 quadrants, 12 hands) | -79,011 | -14,207 |
+
+The conclusion of this document survives: expansion still loses. But the *reason* is now narrower.
+More hands are no longer pure waste — at two quadrants 12 hands beat 8 by **+10,807**, the first time
+crew size has ever paid. NW is exactly full at the shipped plan (11 structures + 14 crops = 25 tiles
+= one quadrant), so at one quadrant there is no work for a 9th hand to do and `H13` correctly loses
+about its own wage. Land is the thing that does not pay for itself; hands scale with it.
+
+## Correction, 2026-08-14 (2): `ANIMAL_PLAN` was never what stood on the board
+
+`_wanted` derived the still-to-buy list from animals *standing on tiles*. An animal in the shed or
+carried by a hand therefore still read as wanted and got re-bought every few hours while in transit
+(seed 7: three SHEEP bought on d7 for the plan's one remaining slot). v4 declares 11 animals and runs
+**13 for 19 of 30 days** — and 13 structures + 14 crops = 27 tiles against a 25-tile quadrant, so two
+crop tiles silently never existed. Every herd-size row in this document compared two *requests*, not
+two boards.
+
+Fixed by passing `held` (shed + inventories) into `_wanted`. New invariant `_check_herd_cap` in
+`tests/test_invariants.py`, verified to FAIL on the pre-fix `main.py`
+(`own 12 animals, plan is 11 (d11 h4)`).
+
+**The fix alone cost −8,500**, because the bug had been *pipelining* acquisition: buying one animal
+and waiting for it to be picked up and placed serialises the ramp at hours per animal. `ANIMAL_PIPELINE`
+(default 3) restores it by ordering every animal whose structure is already vacant, bounded by the
+number already in flight. Depth is flat past 2 (`P2` −64,968, `P4` = `P6` −65,438).
+
+With the ramp restored the herd knob finally measures the herd, vs `ref_broker_bea`, 8 seeds x 2 seats:
+
+| config | herd | mean margin |
+| --- | ---: | ---: |
+| `BASE` (4 SHEEP + 7 COW) | 11 | **-65,370** |
+| `A10c` | 10 | -67,390 |
+| `A12c` | 12 | -68,273 |
+| `A13` (6 SHEEP + 7 COW, what v4 really ran) | 13 | -69,638 |
+| `A9c` | 9 | -85,760 |
+
+v4's plan was right all along; it was simply never executed. 11 beats the 13 it actually ran by 4,268.
+
+## Reversal, 2026-08-14 (3): drip selling is a loss
+
+v2's headline feature was drip selling — spreading a daily `DRAIN` quota across the 23 sell hours so
+prices "never collapse". It is wrong, and wrong monotonically. `DRAIN_SCALE` multiplies the quota;
+head-to-head against the unscaled build, 8 seeds x 2 seats:
+
+| DRAIN_SCALE | W-L | mean margin |
+| ---: | --- | ---: |
+| 0.60 | 0W-16L | -5,904 |
+| 0.75 | 0W-16L | -3,830 |
+| 0.90 | 0W-16L | -1,422 |
+| 1.25 | 14W-2L | +1,112 |
+| 1.50 | 14W-2L | +2,920 |
+| 2.0 | 16W-0L | +3,390 |
+| 3.0 | 14W-2L | +3,045 |
+| 5.0 | 16W-0L | +2,429 |
+| **999 (no throttle)** | **16W-0L** | **+7,581** |
+
+Holding stock back does not protect the price. The town refills the order book every turn, so an
+unsold unit is not a defended price — it is a unit sitting in the shed while the refill it was
+waiting for is consumed by someone else. The original calibration (`tools/drain.py`) measured the
+town's consumption **alone**, with no opponent competing for the same refill.
+
+This is the first change where the mirror panel and the independent references agree, 32 episodes each:
+
+| opponent | v5 | v6 (no throttle) |
+| --- | ---: | ---: |
+| `main.py` (v5) | — | **16W-0L, +7,581** |
+| `bench/v4.py` | 22W-10L | **28W-4L (88%)** |
+| `bench/v3.py` | 10W-22L (31%) | **18W-14L (56%), +401** |
+| `ref_broker_bea` | -69,705 | **-63,807** |
+| `ref_closer_cleo` | -67,690 | **-63,672** |
+
+First build in the lineage to win the v3 matchup. Submitted as v6.
+
+**Everything tuned under the throttle is now suspect** — herd size, crop mix, `HIRES`, and especially
+the expansion verdict, since part of expansion's cost was flooding a market we were also throttling.
+Re-tune from scratch with `tools/tune.py` (Optuna, resumable SQLite study in `.sweep/tune.db`).
+
+## 2026-08-14 (4): the order slot is a price race, and we were in last place
+
+`_process_market` walks the two players' order lists **by index in lockstep**, committing every unit
+of slot `i` before touching slot `i+1` (`kaggriculture.py:542-615`). A SELL in a late slot therefore
+prices against an order book the opponent's early-slot SELL has already filled. `HIRE` and `BUY_LAND`
+are atomic and settle regardless of position, so putting them first costs real money.
+
+We were emitting 8 `HIRE` orders at hour 0 and selling from slot 8. Two changes:
+
+- **Sell first.** Sells are now built before hires and purchases, at every hour. Worth **+2,794**
+  (16W-0L) on its own.
+- **`HIRE_HOUR0`** splits the crew: how many hires go in hour 0's ten slots, the rest topped up from
+  hour 1 at `HIRE_SLOTS` per turn. Hour 0 sells into the fullest shed of the day (everything the hands
+  dropped at the rollover), so slots spent hiring there are expensive. Against the 8/0 split, 8 seeds
+  x 2 seats: 7 +4,673 / 6 +5,298 / 5 +4,321 / **4 +6,632** / 2 +4,343, all 16W-0L. Do not cut the
+  crew itself to buy the slots — `HIRES` 6 falls to +1,814 and `HIRES` 4 to -13,484.
+
+Shipped as v7. 32 episodes each: vs v6 **32W-0L +5,952**, vs `bench/v4.py` **30W-2L (94%)**, vs
+`bench/v3.py` 18W-14L (56%), `ref_broker_bea` **-62,684** (v6 -63,807), `ref_closer_cleo` **-61,811**
+(v6 -63,672). Every panel at least matches v6.
+
+Also established, from the env source, and NOT exploitable: `BUY_PRODUCT` quotes at post-buy
+inventory `P(I-1)` and selling back quotes the same `P(I-1)`, so a wheat/fertilizer round trip nets
+exactly zero — there is no arbitrage. `shedCapacity` gates buying and depositing but never SELL, so
+dumping early frees shed room but carries no price advantage of its own.
+
+Optuna (`tools/tune.py`, study `v6mirror`) put `LAND_TARGET = 2` in all five of its top trials, but at
+8 episodes per trial its winners collapse when re-measured at 32 (`T33-F4` 2W-14L, `T46` worst
+-13,909). Re-run the study at a larger `--games` before believing any row of it.

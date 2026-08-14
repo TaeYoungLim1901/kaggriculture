@@ -39,7 +39,22 @@ BASE = {"WHEAT": 25, "CARROT": 35, "TOMATO": 60, "STRAWBERRY": 120, "MELON": 250
 # the only thing that refills it is town consumption. So a day's quota sold in one
 # order walks its own price down the curve, while the same quota dripped across the
 # day rides the refill. Hour 0 is reserved for HIRE (it needs 8 of the 10 order slots).
-SELL_HOURS = tuple(range(1, 24))
+# Throttling the sell rate is a loss, and the loss is monotone in the throttle. DRAIN
+# was calibrated against the town's consumption alone, which is the wrong question:
+# holding stock back does not protect the price, it just leaves the goods in the shed
+# while the town keeps refilling the order book. Measured head-to-head against the
+# unscaled build, 8 seeds x 2 seats: 0.60 -5,904 / 0.75 -3,830 / 0.90 -1,422 /
+# 1.25 +1,112 / 1.50 +2,920 / 2.0 +3,390 / 5.0 +2,429 / no throttle +7,581 (16W-0L).
+# 999 makes every per-hour share exceed the shed, i.e. sell everything, every hour.
+# The knob stays because a future opponent may make the throttle worth something.
+DRAIN_SCALE = 999.0
+# Hour 0 included. The whole gain from dropping the throttle is reaching the top of
+# the price curve before the opponent, so the earliest turn of the day is the most
+# valuable one to sell in -- the shed is fullest there, holding everything the hands
+# dropped at the day rollover. HIRE still takes 8 of the 10 hour-0 slots, leaving one
+# sell order, and that one order is worth +4,244 (16W-0L). Do not fund it by hiring
+# less: HIRES 6 falls to +1,814 and HIRES 4 to -13,484.
+SELL_HOURS = tuple(range(0, 24))
 LAST_DAY = 29                # unsold stock scores nothing, so liquidate
 
 SHED_CAP = 100
@@ -54,11 +69,18 @@ SEED_BATCH = 3              # max seeds of one crop bought per turn
 # this build -72,376. See docs/SWEEP_DERIVED.md.
 ANIMAL_PLAN = ["SHEEP"] * 4 + ["COW"] * 7   # 11 structures + 14 crops = 25 tiles
 CROP_PLAN = [("STRAWBERRY", 8), ("WHEAT", 6)]   # crop -> tiles to keep planted
-HIRES = 8                   # per day; cost is fib(n), so 8 hands total $54
+HIRES = 8                   # per day; cost is fib(n), so 8 hands total $33
+HIRE_SLOTS = 2              # market slots a single turn may spend on HIRE past 8
+# Of the 10 hour-0 order slots, how many go to HIRE; the rest of the crew is topped
+# up from hour 1 at HIRE_SLOTS per turn. Hour 0 sells into the fullest shed of the
+# day, so slots spent hiring are expensive there. Measured against the 8/0 split,
+# 8 seeds x 2 seats: 7 +4,673 / 6 +5,298 / 5 +4,321 / 4 +6,632 / 2 +4,343, all 16W-0L.
+HIRE_HOUR0 = 4
 LAND_TARGET = 1             # quadrants to own; measured: expansion loses money
                             # at our routing efficiency (see docs/META.md §5)
 LAND_RESERVE = 1000         # cash kept back after a land purchase
 ANIMAL_RESERVE = 0          # animals ahead to hold cash for before seeds/land
+ANIMAL_PIPELINE = 3         # animals allowed in the shed / in transit at once
 PLANT_CAP = False           # cap PLANT tasks at seeds actually on hand
 STICKY = False              # keep a moving unit's target until it arrives
 BUNDLE = False              # persist short local work queues with deadline preemption
@@ -199,6 +221,14 @@ def min_cost_assignment(cost) -> list[int | None]:
             assignment[worker] = task
     return assignment
 
+def _fib(n):
+    """Cost of the n-th hire of the day (kaggriculture.py:685, mult 1)."""
+    a, b = 0, 1
+    for _ in range(n):
+        a, b = b, a + b
+    return a
+
+
 def _dist(a, b):
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
@@ -230,9 +260,20 @@ def _scan(farm):
     return s
 
 
-def _wanted(scan, seeds):
+def _wanted(scan, seeds, held=None):
     """(animals still to buy, structure kinds to build, crop -> tiles to plant)."""
     have = [t.get("animal") for _, t in scan["animals"]]
+    # An animal sitting in the shed or carried by a hand is already owned. Counting
+    # only the ones standing on tiles leaves it listed as still-wanted, so we buy it
+    # again every few hours while it is in transit -- and BUY_ANIMAL fires whenever
+    # any matching structure is vacant, which it is until the animal lands. Measured
+    # on seed 7: 3 SHEEP bought on d7 for the plan's 1 remaining slot, ending the
+    # season with 13 animals against ANIMAL_PLAN's 11 for 19 of 30 days. That is
+    # ~$900 of dead capital, 2 extra wheat/day of feed, MILK/WOOL pushed deeper into
+    # their price floor, and -- since 13 structures + 14 crops = 27 tiles against the
+    # quadrant's 25 -- two crop tiles lost. v4's whole edge was cutting 14 -> 11.
+    for animal, count in (held or {}).items():
+        have += [animal] * count
     todo = list(ANIMAL_PLAN)
     for a in have:
         if a in todo:
@@ -548,8 +589,13 @@ def _market(farm, private, scan, day, hour, market_prices, todo, build_want, whe
     n_animals = len(scan["animals"])
     orders = []
 
-    if hour == 0:
-        orders += [["HIRE"]] * min(HIRES, 8)   # leave two hour-0 slots for purchases
+    # Order slots are processed by index, in lockstep with the opponent's list of the
+    # same turn: every unit of the order in slot i is committed before slot i+1
+    # (kaggriculture.py:542-615). So a SELL in a late slot prices against an order
+    # book the opponent's early-slot SELL has already filled. HIRE and BUY_LAND are
+    # atomic and settle regardless of position, so selling first costs nothing.
+    hire_now = min(HIRES, HIRE_HOUR0) if hour == 0 else 0
+    sell_budget = 10 - hire_now - 1        # keep one slot for the day's purchases
 
     # Price-gated selling (closed loop, docs/FRAMEWORK.md §5). The town drains the
     # market faster than we produce, so prices sit ABOVE base most of the season:
@@ -564,7 +610,7 @@ def _market(farm, private, scan, day, hour, market_prices, todo, build_want, whe
             have = shed.get(item, 0)
             if item == "WHEAT":
                 have -= wheat_pickup + (n_animals * 2 if not dump else 0)  # keep pickup and feed in reserve
-            if have <= 0 or len(orders) >= 9:
+            if have <= 0 or len(orders) >= sell_budget:
                 continue
             price = market_prices.get(item, BASE[item])
             if dump:
@@ -578,15 +624,35 @@ def _market(farm, private, scan, day, hour, market_prices, todo, build_want, whe
                 # on a low price instead *causes* the glut it means to avoid --
                 # stock piles up, the shed passes SHED_CAP, and panic dumps the
                 # whole holding at the $1 floor (measured: 154 MILK for $154).
-                qty = min(have, _drip(DRAIN[item], hour))
+                qty = min(have, _drip(max(1, round(DRAIN[item] * DRAIN_SCALE)), hour))
                 if qty <= 0:
                     continue
             if qty > 0:
                 orders.append(["SELL", item, qty])
 
-    if hour > 0 and HIRES > 8 and len(orders) < 10:
-        hired = int(_g(farm, "hires_today", 8) or 0)
-        orders += [["HIRE"]] * min(max(0, HIRES - hired), 10 - len(orders))
+    orders += [["HIRE"]] * hire_now
+
+    # Hires past the 8 that fit in hour 0 have to share later turns with selling.
+    # Unguarded this deadlocks: HIRE filled all 10 slots every hour, so no SELL
+    # went out, so no cash arrived, so `_do_hire` kept failing without advancing
+    # `hires_today`, so we re-requested forever (measured at HIRES=13: 1,516 HIRE
+    # orders for 390 wanted, SELL 527 -> 336, $70,267 -> $46,222 on seed 7).
+    # Two guards: never spend more than HIRE_SLOTS of a turn on hiring, and only
+    # ask for hires we can actually pay for -- a failed HIRE burns the slot.
+    # ...and not before the herd is bought. Days 1-10 run on $123-$588, so 13
+    # hands/day ($232 vs $33) starves BUY_ANIMAL/BUY_SEED and the engine starts
+    # late. Idle hands are worthless before there is anything to tend anyway.
+    if hour > 0 and HIRES > HIRE_HOUR0:
+        hired = int(_g(farm, "hires_today", HIRE_HOUR0) or 0)
+        # Completing the crew up to 8 is cheap and urgent. Only the hands past 8 --
+        # where the fib wage starts to bite -- wait for the herd to be bought.
+        target = HIRES if not todo else min(HIRES, 8)
+        room = min(HIRE_SLOTS, max(0, 9 - len(orders)), max(0, target - hired))
+        cash, n = money - CASH_FLOOR, 0
+        while n < room and _fib(hired + n) <= cash:
+            cash -= _fib(hired + n)
+            n += 1
+        orders += [["HIRE"]] * n
 
     if len(orders) >= 10:
         return orders[:10]
@@ -604,19 +670,50 @@ def _market(farm, private, scan, day, hour, market_prices, todo, build_want, whe
     # Buy an animal as soon as ANY matching structure is vacant. Waiting for the
     # whole build plan to finish starves the herd of capital: seeds and pastures
     # eat the bank while zero animals are earning.
-    vacant = {t.get("kind") for _, t in scan["structs"]}
-    next_animal = todo[0] if todo else None
-    pending = todo
-    if next_animal and shed.get(next_animal, 0) == 0             and ANIMALS[next_animal]["structure"] in vacant             and spend >= ANIMALS[next_animal]["cost"]:
-        orders.append(["BUY_ANIMAL", next_animal, 1])
-        spend -= ANIMALS[next_animal]["cost"]
-        pending = todo[1:]
+    # Buy every animal we can pay for whose structure is already standing empty,
+    # instead of one per turn. Ordering one and waiting for it to be picked up and
+    # placed serialises the ramp at hours per animal; ANIMAL_PIPELINE bounds how
+    # many may be in the shed or in transit at once so we do not park capital in
+    # animals the hands cannot place. `todo` counts in-transit animals (see
+    # _wanted), so this can never exceed ANIMAL_PLAN.
+    vacant = {}
+    for _, t in scan["structs"]:
+        vacant[t.get("kind")] = vacant.get(t.get("kind"), 0) + 1
+    in_flight = sum(count
+                    for holder in [shed] + list(_g(private, "inventories", []) or [])
+                    for a, count in (holder or {}).items()
+                    if a in ANIMALS and count > 0)
+    room = ANIMAL_PIPELINE - in_flight
+    bought = 0
+    for animal in todo:
+        kind = ANIMALS[animal]["structure"]
+        if (bought >= room or vacant.get(kind, 0) <= 0
+                or spend < ANIMALS[animal]["cost"] or len(orders) >= 10):
+            break
+        orders.append(["BUY_ANIMAL", animal, 1])
+        spend -= ANIMALS[animal]["cost"]
+        vacant[kind] -= 1
+        bought += 1
+    pending = todo[bought:]
     # Hold cash for the next ANIMAL_RESERVE animals whose structures are still being
     # built, so seeds and land cannot eat the herd's capital. Off by default: at 25
     # tiles it measured 12W-4L against no reserve (the engine is not starved there).
     # It is the EXPANSION fix -- at 2 quadrants the first BUY_ANIMAL slips day 0 ->
     # day 10 -- so it only pays with a larger CROP_PLAN. See docs/META.md §6.
     spend -= sum(ANIMALS[a]["cost"] for a in pending[:ANIMAL_RESERVE])
+
+    # Land before seeds. The seed drip takes SEED_BATCH of `spend` every turn, so at a
+    # 38-tile CROP_PLAN it holds the balance under the land price for days: BUY_LAND
+    # landed on d13 of 30, and the quadrant only reaches full throughput (294 of 312
+    # unit-slots/day, ~94% non-PASS) around d19. The mined top-ladder trace buys its
+    # quadrants on d6 and d9. A tile bought late earns for the rest of the season; a
+    # seed bought late costs one crop cycle. No effect at LAND_TARGET = 1, which never
+    # reaches this branch.
+    unlocked = len(_g(farm, "unlocked_quadrants", ["NW"]) or ["NW"])
+    land = [1000, 2000, 4000]
+    if unlocked < LAND_TARGET and unlocked < 4 and spend > land[unlocked - 1] + LAND_RESERVE:
+        orders.append(["BUY_LAND"])
+        spend -= land[unlocked - 1]
 
     # Buy seeds toward the tiles still UNPLANTED. Topping the seed inventory up to
     # `n` ignores what is already in the ground, so it parks n seeds of capital in
@@ -630,11 +727,6 @@ def _market(farm, private, scan, day, hour, market_prices, todo, build_want, whe
         if want > 0 and spend > cost * want:
             orders.append(["BUY_SEED", crop, want])
             spend -= cost * want
-
-    unlocked = len(_g(farm, "unlocked_quadrants", ["NW"]) or ["NW"])
-    land = [1000, 2000, 4000]
-    if unlocked < LAND_TARGET and unlocked < 4 and spend > land[unlocked - 1] + LAND_RESERVE:
-        orders.append(["BUY_LAND"])
 
     return orders[:10]
 
@@ -652,7 +744,12 @@ def _act(obs):
     scan = _scan(farm)
     units = [tuple(_g(farm, "farmer", [4, 4]))] + [tuple(p) for p in (_g(farm, "hands", []) or [])]
     invs = [dict(raw_inv[i] or {}) if i < len(raw_inv) else {} for i in range(len(units))]
-    todo, build_want, plant_want = _wanted(scan, seeds)
+    held = {}
+    for holder in [shed] + invs:
+        for item, count in (holder or {}).items():
+            if item in ANIMALS and count > 0:
+                held[item] = held.get(item, 0) + count
+    todo, build_want, plant_want = _wanted(scan, seeds, held)
     tasks = _tasks(scan, day, plant_want, build_want)
 
     if BUNDLE:

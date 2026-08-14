@@ -23,7 +23,8 @@ SEED0 = 90001
 STEPS = 720
 OVERRIDABLE = {
     "LAND_TARGET", "CROP_PLAN", "ANIMAL_PLAN", "HIRES", "SEED_BATCH", "LAND_RESERVE",
-    "ANIMAL_RESERVE", "PLANT_CAP", "DIST_WEIGHT", "STICKY", "BUNDLE",
+    "ANIMAL_RESERVE", "ANIMAL_PIPELINE", "DRAIN_SCALE", "PLANT_CAP", "DIST_WEIGHT",
+    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0",
 }
 SUMMARY = re.compile(
     r"(?P<w>\d+)W-(?P<l>\d+)L-(?P<t>\d+)T over (?P<n>\d+) games "
@@ -54,6 +55,91 @@ CONFIGS = {
     # a different panel size is not comparable.
     "BASE": {},
     "BUNDLE": {"BUNDLE": True},
+    # Every HIRES > 8 row measured before 2026-08-14 is void: the extra-hire refill
+    # loop filled all 10 market slots with HIRE every hour, blocking SELL, so cash
+    # never arrived, `_do_hire` kept failing without advancing `hires_today`, and it
+    # re-requested forever. Re-measure anything that raises HIRES.
+    "H13": {"HIRES": 13},
+    # The transit re-buy (fixed 2026-08-14) meant ANIMAL_PLAN was never what stood on
+    # the board: v4 declared 11 and ran 6 SHEEP + 7 COW. Re-tune from the real herd.
+    # Herd size at a fixed 25-tile budget, now that the ramp is pipelined and the
+    # herd honestly matches ANIMAL_PLAN. Every tile freed from a pasture is a berry.
+    "A10c": {"ANIMAL_PLAN": ["SHEEP"] * 4 + ["COW"] * 6,
+             "CROP_PLAN": [("STRAWBERRY", 9), ("WHEAT", 6)]},
+    "A9c": {"ANIMAL_PLAN": ["SHEEP"] * 3 + ["COW"] * 6,
+            "CROP_PLAN": [("STRAWBERRY", 10), ("WHEAT", 6)]},
+    "A12c": {"ANIMAL_PLAN": ["SHEEP"] * 4 + ["COW"] * 8,
+             "CROP_PLAN": [("STRAWBERRY", 7), ("WHEAT", 6)]},
+    # Sell rate on the shared market. Judge these head-to-head against main.py, not
+    # against the reference agents: the point is what happens when both sides sell the
+    # same goods into one order book.
+    "D060": {"DRAIN_SCALE": 0.60},
+    "D075": {"DRAIN_SCALE": 0.75},
+    "D090": {"DRAIN_SCALE": 0.90},
+    "D125": {"DRAIN_SCALE": 1.25},
+    "D150": {"DRAIN_SCALE": 1.50},
+    "D200": {"DRAIN_SCALE": 2.0},
+    "D300": {"DRAIN_SCALE": 3.0},
+    "D500": {"DRAIN_SCALE": 5.0},
+    "D999": {"DRAIN_SCALE": 999.0},   # sell the whole shed every hour
+    # No-throttle wins by getting to the top of the price curve first, so try to get
+    # there earlier still. Hour 0 is reserved for HIRE, which needs 8 of the 10 slots.
+    "SH0": {"SELL_HOURS": tuple(range(0, 24))},
+    # How many of the 10 hour-0 slots go to HIRE vs to selling into the fullest shed
+    # of the day. The rest of the crew is topped up from hour 1 (HIRE_SLOTS per turn).
+    "F2": {"HIRE_HOUR0": 2},
+    "F3": {"HIRE_HOUR0": 3},
+    "F4": {"HIRE_HOUR0": 4},
+    # Optuna study `v6mirror` (tools/tune.py, 60 trials, 8 episodes each -- noisy).
+    # Every one of its top five picks LAND_TARGET 2: under the sell throttle part of
+    # expansion's cost was flooding a market we were also metering.
+    "T33": {"HIRES": 9, "LAND_TARGET": 2, "ANIMAL_RESERVE": 3, "ANIMAL_PIPELINE": 4,
+            "SEED_BATCH": 1, "ANIMAL_PLAN": ["SHEEP"] * 7 + ["COW"] * 5,
+            "CROP_PLAN": [("STRAWBERRY", 4), ("WHEAT", 14)]},
+    "T46": {"HIRES": 10, "LAND_TARGET": 2, "ANIMAL_RESERVE": 2, "ANIMAL_PIPELINE": 6,
+            "SEED_BATCH": 2, "ANIMAL_PLAN": ["SHEEP"] * 8 + ["COW"] * 5,
+            "CROP_PLAN": [("STRAWBERRY", 4), ("WHEAT", 5)]},
+    "T33-F4": {"HIRES": 9, "LAND_TARGET": 2, "ANIMAL_RESERVE": 3, "ANIMAL_PIPELINE": 4,
+               "SEED_BATCH": 1, "HIRE_HOUR0": 4,
+               "ANIMAL_PLAN": ["SHEEP"] * 7 + ["COW"] * 5,
+               "CROP_PLAN": [("STRAWBERRY", 4), ("WHEAT", 14)]},
+    "F5": {"HIRE_HOUR0": 5},
+    "F6": {"HIRE_HOUR0": 6},
+    "F7": {"HIRE_HOUR0": 7},
+    "SH0-h4": {"SELL_HOURS": tuple(range(0, 24)), "HIRES": 4},
+    "SH0-h6": {"SELL_HOURS": tuple(range(0, 24)), "HIRES": 6},
+    "P1": {"ANIMAL_PIPELINE": 1},
+    "P2": {"ANIMAL_PIPELINE": 2},
+    "P4": {"ANIMAL_PIPELINE": 4},
+    "P6": {"ANIMAL_PIPELINE": 6},
+    "P4-A13": {"ANIMAL_PIPELINE": 4,
+               "ANIMAL_PLAN": ["SHEEP"] * 6 + ["COW"] * 7},
+    "A13": {"ANIMAL_PLAN": ["SHEEP"] * 6 + ["COW"] * 7},
+    "A12": {"ANIMAL_PLAN": ["SHEEP"] * 5 + ["COW"] * 7},
+    "A14": {"ANIMAL_PLAN": ["SHEEP"] * 6 + ["COW"] * 8},
+    "A13c": {"ANIMAL_PLAN": ["SHEEP"] * 6 + ["COW"] * 7,
+             "CROP_PLAN": [("STRAWBERRY", 7), ("WHEAT", 5)]},
+    "E2-H12": {"LAND_TARGET": 2, "HIRES": 12, "ANIMAL_RESERVE": 1,
+               "CROP_PLAN": [("STRAWBERRY", 12), ("WHEAT", 26)]},
+    "E2-H8": {"LAND_TARGET": 2, "ANIMAL_RESERVE": 1,
+              "CROP_PLAN": [("STRAWBERRY", 12), ("WHEAT", 26)]},
+    # Crew size at two quadrants, now that the hire path works and the herd is honest.
+    "E2-H16": {"LAND_TARGET": 2, "HIRES": 16, "ANIMAL_RESERVE": 1,
+               "CROP_PLAN": [("STRAWBERRY", 12), ("WHEAT", 26)]},
+    "E2-H20": {"LAND_TARGET": 2, "HIRES": 20, "ANIMAL_RESERVE": 1,
+               "CROP_PLAN": [("STRAWBERRY", 12), ("WHEAT", 26)]},
+    "E2-H24": {"LAND_TARGET": 2, "HIRES": 24, "ANIMAL_RESERVE": 1,
+               "CROP_PLAN": [("STRAWBERRY", 12), ("WHEAT", 26)]},
+    # How early can the quadrant be afforded?
+    "E2-H12-L0": {"LAND_TARGET": 2, "HIRES": 12, "ANIMAL_RESERVE": 1, "LAND_RESERVE": 0,
+                  "CROP_PLAN": [("STRAWBERRY", 12), ("WHEAT", 26)]},
+    "E2-H12-L500": {"LAND_TARGET": 2, "HIRES": 12, "ANIMAL_RESERVE": 1, "LAND_RESERVE": 500,
+                    "CROP_PLAN": [("STRAWBERRY", 12), ("WHEAT", 26)]},
+    "E2-H12-R0": {"LAND_TARGET": 2, "HIRES": 12, "ANIMAL_RESERVE": 0, "LAND_RESERVE": 0,
+                  "CROP_PLAN": [("STRAWBERRY", 12), ("WHEAT", 26)]},
+    # ...and the same crew question on the quadrant we already own.
+    "H12": {"HIRES": 12},
+    "H16": {"HIRES": 16},
     # the whole derived plan, then each of its three levers alone
     "D1": dict(DERIVED),
     "BD1": dict(DERIVED, BUNDLE=True),

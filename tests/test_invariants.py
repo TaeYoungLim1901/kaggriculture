@@ -305,6 +305,41 @@ def _check_economics(episodes):
         assert final_money >= MIN_END_MONEY, f"final money {final_money} < {MIN_END_MONEY}"
 
 
+def _check_herd_cap(episodes):
+    """Never own more animals than ANIMAL_PLAN asks for.
+
+    `_wanted` derives the still-to-buy list from animals standing on tiles, so an
+    animal in the shed or in a hand's inventory used to read as still-wanted and got
+    re-bought while in transit -- seed 7 ended with 13 animals against a plan of 11.
+    Owned means on a tile, in the shed, or carried.
+    """
+    cap = len(submission.ANIMAL_PLAN)
+    for episode in episodes:
+        env = episode["env"]
+        assert env is not None
+        seat = episode["seat"]
+        for row in env.steps:
+            obs = row[seat].observation
+            farm = _get(_get(obs, "farms", [])[seat], "tiles", []) or []
+            owned = sum(
+                1
+                for tile_row in farm
+                for tile in (tile_row or [])
+                if isinstance(tile, Mapping) and "animal" in tile
+            )
+            private = _get(obs, "private", {}) or {}
+            holders = [_get(private, "shed", {}) or {}]
+            holders += list(_get(private, "inventories", []) or [])
+            owned += sum(
+                count
+                for holder in holders
+                for animal, count in (holder or {}).items()
+                if animal in ANIMALS and isinstance(count, int)
+            )
+            day, hour = _get(obs, "day", 0), _get(obs, "hour", 0)
+            assert owned <= cap, f"own {owned} animals, plan is {cap} (d{day} h{hour})"
+
+
 def _run_check(name, check, failures):
     try:
         check()
@@ -323,6 +358,7 @@ def main():
     _run_check("action schema", lambda: _check_schema(episodes), failures)
     _run_check("no-op rate", lambda: _check_noops(episodes), failures)
     _run_check("economic floor", lambda: _check_economics(episodes), failures)
+    _run_check("herd cap", lambda: _check_herd_cap(episodes), failures)
     return 1 if failures else 0
 
 
