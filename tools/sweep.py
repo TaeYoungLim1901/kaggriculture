@@ -119,6 +119,12 @@ CONFIGS = {
     # walking, so the shape of this dict is now a routing knob, not just an ordering.
     # Never swept before 2026-08-14: a constant at its first-commit default is not
     # a tuned constant.
+    "AR1": {"ANIMAL_RESERVE": 1},
+    "AR3": {"ANIMAL_RESERVE": 3},
+    "SB3": {"SEED_BATCH": 3},
+    "SB8": {"SEED_BATCH": 8},
+    "LD27": {"LAST_DAY": 27},
+    "LD29x": {"LAST_DAY": 99},
     "CF50": {"CASH_FLOOR": 50},
     "CF1000": {"CASH_FLOOR": 1000},
     "FD1": {"FEED_DAYS": 1},

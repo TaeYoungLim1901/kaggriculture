@@ -325,3 +325,16 @@ ordering, since a 200-point gap buys 10 tiles of walking.
 
 New tool: `tools/panel.py` — one command, one table, the candidate against `main.py`, `bench/v3.py`,
 `bench/v4.py` and both reference agents, with `--baseline` for a delta column.
+
+## Reading the sweep table: what "no effect" looks like
+
+`tools/eval.py` plays each seed in both seats, and the seats are mirror images of one episode, so a
+seat-0 win is the same game's seat-1 loss. An identical build against itself scores **balanced W-L
+plus ties with mean margin exactly +0** — not all ties, because the episode is slightly seat
+asymmetric (atomic market orders resolve in player order, `kaggriculture.py:558`). Measured:
+`main.py` vs `main.py` is `2W-2L-4T, +0, worst -209`.
+
+The summary line's win rate is `W / (W + L + T)`, so a no-effect variant reports something like
+"34% win rate" and reads as a mild loss. `ANIMAL_RESERVE` 3 and `SEED_BATCH` 3 and 8 each reported
+`11W-11L-10T, +0, worst -1,280` with byte-identical per-seed money: all three are simply no-ops at
+the shipped plan. Read the mean margin first; a real effect looks like 30W-2L well clear of zero.
