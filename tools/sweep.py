@@ -24,7 +24,7 @@ STEPS = 720
 OVERRIDABLE = {
     "LAND_TARGET", "CROP_PLAN", "ANIMAL_PLAN", "HIRES", "SEED_BATCH", "LAND_RESERVE",
     "ANIMAL_RESERVE", "ANIMAL_PIPELINE", "DRAIN_SCALE", "PLANT_CAP", "DIST_WEIGHT",
-    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0", "SELL_BY_VALUE", "FERT_RESERVE", "BUY_SLOTS",
+    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0", "SELL_BY_VALUE", "FERT_RESERVE", "PRIO_COST", "BUY_SLOTS",
 }
 SUMMARY = re.compile(
     r"(?P<w>\d+)W-(?P<l>\d+)L-(?P<t>\d+)T over (?P<n>\d+) games "
@@ -115,6 +115,19 @@ CONFIGS = {
     "k-berry8": {"CROP_PLAN": [("STRAWBERRY", 8), ("WHEAT", 12)]},
     "k-P4": {"ANIMAL_PIPELINE": 4},
     "k-L3": {"LAND_TARGET": 3},
+    # Priority bands. With DIST_WEIGHT 20 a 200-point band gap is worth 10 tiles of
+    # walking, so the shape of this dict is now a routing knob, not just an ordering.
+    "PC-flat": {"PRIO_COST": {0: -900, 1: -800, 2: -700, 3: -600, 4: -500, 5: -400, 6: -650}},
+    "PC-steep": {"PRIO_COST": {0: -1800, 1: -1400, 2: -1000, 3: -600, 4: -440, 5: -240, 6: -520}},
+    "PC-feed": {"PRIO_COST": {0: -1400, 1: -700, 2: -500, 3: -300, 4: -220, 5: -120, 6: -260}},
+    "PC-harv": {"PRIO_COST": {0: -900, 1: -700, 2: -800, 3: -300, 4: -220, 5: -120, 6: -260}},
+    "PC-plant": {"PRIO_COST": {0: -900, 1: -700, 2: -500, 3: -300, 4: -220, 5: -120, 6: -600}},
+    "W8": {"DIST_WEIGHT": 8},
+    "W12": {"DIST_WEIGHT": 12},
+    "W15": {"DIST_WEIGHT": 15},
+    "W20": {"DIST_WEIGHT": 20},
+    "W30": {"DIST_WEIGHT": 30},
+    "W50": {"DIST_WEIGHT": 50},
     "SV": {"SELL_BY_VALUE": True},
     "B0": {"BUY_SLOTS": 0},
     "B2": {"BUY_SLOTS": 2},

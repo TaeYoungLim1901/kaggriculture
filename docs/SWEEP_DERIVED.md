@@ -291,3 +291,37 @@ at full coverage, and `_act` runs its unit actions before `_market` anyway. The 
 **shifts every later SELL one slot earlier** — the same order-slot race as above. Also worth
 recording: the "reverse test agrees" argument is not independent evidence, it relabels the same
 paired games. A 27-5 split with a +35 mean is consistent with many tiny wins and a few larger losses.
+
+## 2026-08-14 (6): distance was worth nothing in the assignment cost
+
+`_assign` scores a unit/task pair as `PRIO_COST[prio] + DIST_WEIGHT * dist`. `PRIO_COST` spans 780
+and a board crossing is about 18 tiles, so at `DIST_WEIGHT = 1` priority strictly dominated: a unit
+would cross the whole farm past equivalent work to reach a task one band higher.
+
+That is affordable on one quadrant and not on two. Expansion pushed movement/productive from 1.64 to
+**2.13** — 68% of active slots were commute. Raising the weight so a 10-tile detour costs a whole
+priority band fixes it with no code change at all.
+
+32 paired episodes against `DIST_WEIGHT = 1`:
+
+| weight | W-L | mean margin |
+| ---: | --- | ---: |
+| 5 | 10W-22L | -352 |
+| 8 | 27W-5L | +1,380 |
+| 10 | 31W-1L | +1,799 |
+| 12 | 31W-1L | +1,860 |
+| 15 | 28W-4L | +2,311 |
+| **20** | **30W-2L** | **+2,367** |
+| 30 | 14W-18L | +537 |
+| 50 | 14W-18L | -830 |
+
+Non-monotone, and 5 is worse than 1 — the curve is not a simple tradeoff. 20 beats 10 head to head
+(21W-11L) and 12 (18W-14L), so it is the pick. Result: movement/productive **2.13 -> 1.97**,
+productive actions 1,863 -> 1,907 on seed 90001.
+
+This is the first routing-layer gain in the project, and it came from a constant that had been sitting
+at its default the whole time. `PRIO_COST`'s band shape is now a routing knob too, not just an
+ordering, since a 200-point gap buys 10 tiles of walking.
+
+New tool: `tools/panel.py` — one command, one table, the candidate against `main.py`, `bench/v3.py`,
+`bench/v4.py` and both reference agents, with `--baseline` for a delta column.

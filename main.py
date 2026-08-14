@@ -96,7 +96,15 @@ STICKY = False              # keep a moving unit's target until it arrives
 BUNDLE = False              # persist short local work queues with deadline preemption
 # Task value by priority; strictly dominates travel distance (max ~18 tiles).
 PRIO_COST = {0: -900, 1: -700, 2: -500, 3: -300, 4: -220, 5: -120, 6: -260}
-DIST_WEIGHT = 1
+# Distance used to be worth nothing: PRIO_COST spans 780 and a board crossing is
+# about 18 tiles, so priority strictly dominated and units crossed the farm past
+# equivalent work. That is affordable on one quadrant and not on two -- expansion
+# pushed movement/productive from 1.64 to 2.13. At weight 20 a 10-tile detour costs
+# 200, one whole priority band, so a unit takes the near task unless the far one is
+# genuinely more urgent. 32 paired episodes against weight 1: 8 27W-5L / 10 31W-1L /
+# 12 31W-1L / 15 28W-4L / 20 30W-2L +2,367 / 30 14W-18L / 50 14W-18L. Non-monotone,
+# and 20 beats 10 (21W-11L) and 12 (18W-14L) head to head.
+DIST_WEIGHT = 20
 _STICKY_TARGETS = {}
 _STICKY_LAST_STEP = None
 _BUNDLES = {}
