@@ -2,8 +2,9 @@
 
 No hard-coded action trace (unlike the public meta, see docs/META.md). Every turn
 we rebuild a task list from the observed farm state, assign each unit its nearest
-*doable* task, and drip-sell each product at the rate the town consumes it so
-prices never collapse.
+*doable* task, and sell the whole shed as early in the day and as early in the
+order list as the ten market slots allow -- order slots settle by index against
+the opponent's, so selling late means selling into a book they already filled.
 
 Build: 4 SHEEP + 8 COW. CARE banks +1 per fed-and-cared day and pays the whole
 bank out on the next scheduled production, so slow animals convert care into more
@@ -35,10 +36,6 @@ DRAIN = {"WHEAT": 9999, "EGG": 9999, "STRAWBERRY": 25, "CARROT": 15,
          "MILK": 14, "WOOL": 11, "TOMATO": 10, "FERTILIZER": 6, "MELON": 4}
 BASE = {"WHEAT": 25, "CARROT": 35, "TOMATO": 60, "STRAWBERRY": 120, "MELON": 250,
         "EGG": 50, "MILK": 160, "WOOL": 200, "FERTILIZER": 100}
-# Market inventory persists across turns; only prices are recomputed from it, and
-# the only thing that refills it is town consumption. So a day's quota sold in one
-# order walks its own price down the curve, while the same quota dripped across the
-# day rides the refill. Hour 0 is reserved for HIRE (it needs 8 of the 10 order slots).
 # Throttling the sell rate is a loss, and the loss is monotone in the throttle. DRAIN
 # was calibrated against the town's consumption alone, which is the wrong question:
 # holding stock back does not protect the price, it just leaves the goods in the shed
@@ -76,6 +73,12 @@ HIRE_SLOTS = 2              # market slots a single turn may spend on HIRE past 
 # day, so slots spent hiring are expensive there. Measured against the 8/0 split,
 # 8 seeds x 2 seats: 7 +4,673 / 6 +5,298 / 5 +4,321 / 4 +6,632 / 2 +4,343, all 16W-0L.
 HIRE_HOUR0 = 4
+# Rank sell orders by the value of the whole position, not the unit price: an
+# early slot is worth more than a late one and hour 0 only has a few. 16W-0L,
+# +1,835 against ranking by unit price.
+SELL_BY_VALUE = True
+FERT_RESERVE = 99           # fertilizer held back from market for the ongoing crops
+BUY_SLOTS = 1               # order slots per turn kept back from selling for purchases
 LAND_TARGET = 1             # quadrants to own; measured: expansion loses money
                             # at our routing efficiency (see docs/META.md §5)
 LAND_RESERVE = 1000         # cash kept back after a land purchase
@@ -587,6 +590,9 @@ def _market(farm, private, scan, day, hour, market_prices, todo, build_want, whe
     shed = _g(private, "shed", {}) or {}
     seeds = _g(private, "seeds", {}) or {}
     n_animals = len(scan["animals"])
+    unfertilized = sum(1 for _, t in scan["plants"]
+                       if CROPS.get(t.get("crop"), {}).get("ongoing")
+                       and t.get("fertilized_until_day", -1) < day)
     orders = []
 
     # Order slots are processed by index, in lockstep with the opponent's list of the
@@ -595,7 +601,7 @@ def _market(farm, private, scan, day, hour, market_prices, todo, build_want, whe
     # book the opponent's early-slot SELL has already filled. HIRE and BUY_LAND are
     # atomic and settle regardless of position, so selling first costs nothing.
     hire_now = min(HIRES, HIRE_HOUR0) if hour == 0 else 0
-    sell_budget = 10 - hire_now - 1        # keep one slot for the day's purchases
+    sell_budget = 10 - hire_now - BUY_SLOTS
 
     # Price-gated selling (closed loop, docs/FRAMEWORK.md §5). The town drains the
     # market faster than we produce, so prices sit ABOVE base most of the season:
@@ -604,12 +610,23 @@ def _market(farm, private, scan, day, hour, market_prices, todo, build_want, whe
         panic = sum(shed.values()) > SHED_CAP - 20   # overflow is discarded
         dump = day >= LAST_DAY
         overflow = max(0, sum(shed.values()) - (SHED_CAP - 20)) if panic else 0
+        # Slots are scarce at hour 0 (HIRE takes HIRE_HOUR0 of the ten), and an early
+        # slot is worth more than a late one, so the order here decides which goods
+        # win the price race. Unit price ignores how much we are holding: 40 WHEAT at
+        # $25 is worth more than 2 MELON at $250. SELL_BY_VALUE ranks by the whole
+        # position instead of by the unit.
         items = (sorted(DRAIN, key=lambda k: BASE[k]) if panic and not dump
-                 else sorted(DRAIN, key=lambda k: -BASE[k]))
+                 else sorted(DRAIN, key=lambda k: -BASE[k] * (shed.get(k, 0) if SELL_BY_VALUE else 1)))
         for item in items:
             have = shed.get(item, 0)
             if item == "WHEAT":
                 have -= wheat_pickup + (n_animals * 2 if not dump else 0)  # keep pickup and feed in reserve
+            elif item == "FERTILIZER" and not dump:
+                # A fertilized+watered ongoing crop yields 2 units instead of 1 and one
+                # FERTILIZER covers 3 days, so on STRAWBERRY it is worth ~$200 of fruit
+                # against ~$50 sold. Nothing reserved it before, so with the throttle
+                # gone the whole day's collection went straight to market.
+                have -= min(FERT_RESERVE, unfertilized)
             if have <= 0 or len(orders) >= sell_budget:
                 continue
             price = market_prices.get(item, BASE[item])
@@ -619,11 +636,11 @@ def _market(farm, private, scan, day, hour, market_prices, todo, build_want, whe
                 qty = min(have, overflow)
                 overflow -= qty
             else:
-                # No price gate. DRAIN is the town's consumption rate, so selling
-                # at it is self-stabilising: the town removes what we add. Gating
-                # on a low price instead *causes* the glut it means to avoid --
-                # stock piles up, the shed passes SHED_CAP, and panic dumps the
-                # whole holding at the $1 floor (measured: 154 MILK for $154).
+                # No price gate, and at DRAIN_SCALE 999 no rate gate either --
+                # see the DRAIN_SCALE note. Gating on a low price *causes* the
+                # glut it means to avoid: stock piles up, the shed passes
+                # SHED_CAP, and panic dumps the holding at the $1 floor
+                # (measured: 154 MILK for $154).
                 qty = min(have, _drip(max(1, round(DRAIN[item] * DRAIN_SCALE)), hour))
                 if qty <= 0:
                     continue

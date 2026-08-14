@@ -24,7 +24,7 @@ STEPS = 720
 OVERRIDABLE = {
     "LAND_TARGET", "CROP_PLAN", "ANIMAL_PLAN", "HIRES", "SEED_BATCH", "LAND_RESERVE",
     "ANIMAL_RESERVE", "ANIMAL_PIPELINE", "DRAIN_SCALE", "PLANT_CAP", "DIST_WEIGHT",
-    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0",
+    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0", "SELL_BY_VALUE", "FERT_RESERVE", "BUY_SLOTS",
 }
 SUMMARY = re.compile(
     r"(?P<w>\d+)W-(?P<l>\d+)L-(?P<t>\d+)T over (?P<n>\d+) games "
@@ -87,6 +87,15 @@ CONFIGS = {
     "SH0": {"SELL_HOURS": tuple(range(0, 24))},
     # How many of the 10 hour-0 slots go to HIRE vs to selling into the fullest shed
     # of the day. The rest of the crew is topped up from hour 1 (HIRE_SLOTS per turn).
+    "SV": {"SELL_BY_VALUE": True},
+    "B0": {"BUY_SLOTS": 0},
+    "B2": {"BUY_SLOTS": 2},
+    "FR0": {"FERT_RESERVE": 0},
+    "FR2": {"FERT_RESERVE": 2},
+    "FR4": {"FERT_RESERVE": 4},
+    "S3": {"HIRE_SLOTS": 3},
+    "S4": {"HIRE_SLOTS": 4},
+    "S1": {"HIRE_SLOTS": 1},
     "F2": {"HIRE_HOUR0": 2},
     "F3": {"HIRE_HOUR0": 3},
     "F4": {"HIRE_HOUR0": 4},
