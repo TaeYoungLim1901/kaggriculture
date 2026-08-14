@@ -1,9 +1,9 @@
 """Constant-override sweeps: materialise variants of main.py and eval each.
 
-Current panel: the capital question (docs/META.md §6 item 0) -- does an animal
-capital reserve unblock expansion when combined with a bigger CROP_PLAN?
-Opponent is `bench/v3.py`, a byte copy of the shipped build, so a W-L record
-here reads directly as "better or worse than what we ship".
+Pass `--opp main.py` to measure a variant against the build in the tree: the
+ladder behaves like a mirror, so a W-L record there reads directly as "better or
+worse than what we ship". Use bench/ref_broker_bea.py and bench/ref_closer_cleo.py
+as the independent check -- we lose to both 0W-32L, so only their margin informs.
 """
 import argparse
 import json
@@ -87,6 +87,21 @@ CONFIGS = {
     "SH0": {"SELL_HOURS": tuple(range(0, 24))},
     # How many of the 10 hour-0 slots go to HIRE vs to selling into the fullest shed
     # of the day. The rest of the crew is topped up from hour 1 (HIRE_SLOTS per turn).
+    # Optuna study `v9mirror` (clean: frozen main.py, 100 trials, 16 episodes each).
+    # All five top trials converge on the same shape -- two quadrants, 13 animals
+    # cow-heavy, a wheat-heavy crop plan, 10-11 hands.
+    "T82": {"HIRES": 10, "HIRE_HOUR0": 3, "LAND_TARGET": 2, "ANIMAL_RESERVE": 2,
+            "ANIMAL_PIPELINE": 5, "SEED_BATCH": 5,
+            "ANIMAL_PLAN": ["SHEEP"] * 5 + ["COW"] * 8,
+            "CROP_PLAN": [("STRAWBERRY", 4), ("WHEAT", 12)]},
+    "T92": {"HIRES": 11, "HIRE_HOUR0": 5, "LAND_TARGET": 2, "ANIMAL_RESERVE": 2,
+            "ANIMAL_PIPELINE": 5, "SEED_BATCH": 5,
+            "ANIMAL_PLAN": ["SHEEP"] * 5 + ["COW"] * 8,
+            "CROP_PLAN": [("STRAWBERRY", 4), ("WHEAT", 12)]},
+    "T82-F4": {"HIRES": 10, "LAND_TARGET": 2, "ANIMAL_RESERVE": 2,
+               "ANIMAL_PIPELINE": 5, "SEED_BATCH": 5,
+               "ANIMAL_PLAN": ["SHEEP"] * 5 + ["COW"] * 8,
+               "CROP_PLAN": [("STRAWBERRY", 4), ("WHEAT", 12)]},
     "SV": {"SELL_BY_VALUE": True},
     "B0": {"BUY_SLOTS": 0},
     "B2": {"BUY_SLOTS": 2},

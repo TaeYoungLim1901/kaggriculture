@@ -10,8 +10,11 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRATCH = ROOT / ".sweep"
 DB = SCRATCH / "tune.db"
 OPP = "bench/ref_broker_bea.py"
+STAGES = [4, 12, 32]
 SEARCH_SPACE = {
     "HIRES": (8, 14),
+    "HIRE_HOUR0": (1, 9),
+    "HIRE_SLOTS": (1, 4),
     "LAND_TARGET": (1, 2),
     "ANIMAL_RESERVE": (0, 3),
     "ANIMAL_PIPELINE": (1, 6),
@@ -72,27 +75,79 @@ def objective(trial, args):
         "CROP_PLAN": [("STRAWBERRY", params["n_strawberry"]),
                       ("WHEAT", params["n_wheat"])],
     })
-    mean, rate = run_eval(f"trial-{trial.number}", overrides, args.games, args.opp,
-                          args.jobs, args.seed0)
+    seed0 = args.seed0
+    for step, games in enumerate(args.stages):
+        mean, rate = run_eval(
+            f"trial-{trial.number}-stage-{step}", overrides, games, args.opp,
+            args.jobs, seed0
+        )
+        trial.set_user_attr(f"stage_{step}_value", mean)
+        trial.set_user_attr(f"stage_{step}_win_rate", rate)
+        trial.set_user_attr("stage_reached", step)
+        trial.report(mean, step=step)
+        if step < len(args.stages) - 1 and trial.should_prune():
+            raise optuna.TrialPruned(f"pruned after stage {step}")
+        seed0 += games
     trial.set_user_attr("win_rate", rate)
     return mean
+
+
+def parse_stages(raw, games):
+    if raw:
+        try:
+            stages = [int(part) for part in raw.split(",")]
+        except ValueError as exc:
+            raise ValueError("--stages must be comma-separated positive integers") from exc
+    elif games is not None:
+        stages = [games]
+    else:
+        stages = STAGES[:]
+    if not stages or any(stage < 1 for stage in stages) or stages != sorted(set(stages)):
+        raise ValueError("stages must be positive and strictly increasing")
+    return stages
+
+
+def trial_value(trial):
+    if trial.value is not None:
+        return trial.value
+    reached = trial.user_attrs.get("stage_reached", -1)
+    return trial.user_attrs.get(f"stage_{reached}_value", float("-inf"))
+
+
+def print_trial(trial, stages):
+    reached = trial.user_attrs.get("stage_reached", -1)
+    marker = " UNCONFIRMED" if reached == 0 and len(stages) > 1 else ""
+    details = []
+    for step in range(reached + 1):
+        value = trial.user_attrs.get(f"stage_{step}_value")
+        rate = trial.user_attrs.get(f"stage_{step}_win_rate")
+        details.append(f"s{step}={value:+,}/{rate}%")
+    print(f"  {trial.number}: reached stage {reached}{marker}; "
+          f"{', '.join(details)}; params={trial.params}")
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--trials", type=int, default=20)
-    ap.add_argument("--games", type=int, default=6)
+    ap.add_argument("--games", type=int, default=None,
+                    help=f"single-stage budget (default ladder starts at {STAGES[0]})")
+    ap.add_argument("--stages", help="comma-separated games per stage")
     ap.add_argument("--opp", default=OPP)
     ap.add_argument("--study", default="kaggri")
     ap.add_argument("--jobs", type=int, default=1)
     ap.add_argument("--seed0", type=int, default=sweep.SEED0)
     args = ap.parse_args()
-    if args.jobs < 1 or args.games < 1 or args.trials < 1:
+    if args.jobs < 1 or args.trials < 1 or (args.games is not None and args.games < 1):
         ap.error("--trials, --games, and --jobs must be at least 1")
+    try:
+        args.stages = parse_stages(args.stages, args.games)
+    except ValueError as exc:
+        ap.error(str(exc))
     SCRATCH.mkdir(exist_ok=True)
     storage = f"sqlite:///{DB.as_posix()}"
     study = optuna.create_study(storage=storage, study_name=args.study,
-                                load_if_exists=True, direction="maximize")
+                                load_if_exists=True, direction="maximize",
+                                pruner=optuna.pruners.SuccessiveHalvingPruner())
     study.optimize(lambda trial: objective(trial, args), n_trials=args.trials)
 
     complete = [t for t in study.trials
@@ -102,12 +157,13 @@ def main():
         print("No completed trials.")
         return 0
     best = study.best_trial
-    print(f"Best trial {best.number}: value={best.value}, win_rate={best.user_attrs.get('win_rate')}%")
+    print(f"Best trial {best.number}: value={best.value}, "
+          f"win_rate={best.user_attrs.get('win_rate')}%")
     print(f"  params={best.params}")
     print("Top 5 trials:")
-    for trial in sorted(complete, key=lambda item: item.value, reverse=True)[:5]:
-        print(f"  {trial.number}: value={trial.value}, "
-              f"win_rate={trial.user_attrs.get('win_rate')}%, params={trial.params}")
+    attempted = [t for t in study.trials if "stage_reached" in t.user_attrs]
+    for trial in sorted(attempted, key=trial_value, reverse=True)[:5]:
+        print_trial(trial, args.stages)
     return 0
 
 

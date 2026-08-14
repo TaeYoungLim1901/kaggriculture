@@ -58,32 +58,38 @@ SHED_CAP = 100
 SHED_TILES = [(4, 4), (5, 4), (4, 5), (5, 5)]
 CASH_FLOOR = 250            # absolute minimum cash
 FEED_DAYS = 3               # days of wheat feed to keep funded before any purchase
-SEED_BATCH = 3              # max seeds of one crop bought per turn
-# A SMALLER herd beats a bigger one: MILK hits its price floor after 76 units and
-# WOOL after 59 (reference-agents price_curves.csv), so 14 animals overproduce into
-# a floored market and eat the wheat feed. Cutting to 11 frees tiles for berries.
-# Measured vs the meta bench, 24 seeds x 2 seats: shipped 14-animal build -86,140,
-# this build -72,376. See docs/SWEEP_DERIVED.md.
-ANIMAL_PLAN = ["SHEEP"] * 4 + ["COW"] * 7   # 11 structures + 14 crops = 25 tiles
-CROP_PLAN = [("STRAWBERRY", 8), ("WHEAT", 6)]   # crop -> tiles to keep planted
-HIRES = 8                   # per day; cost is fib(n), so 8 hands total $33
+SEED_BATCH = 5
+# Found by the Optuna study `v9mirror` (tools/tune.py, 100 trials against a frozen
+# main.py) and confirmed at 32 episodes. Cow-heavy, wheat-heavy, and it needs the
+# second quadrant: 13 structures + 16 crops = 29 tiles against NW's 25. Under the
+# old sell throttle expansion always lost -- part of its cost was flooding a market
+# we were simultaneously metering. With the throttle gone it wins.
+# 32 paired episodes: vs the 1-quadrant build 26W-6L +2,135, vs the shipped v7
+# 28W-4L +3,824, vs bench/v3.py 24W-8L +8,057 (the 1-quadrant build managed only
+# 18W-14L there). Against the reference agents the mean is ~2k worse but the WORST
+# case improves (-94,870 -> -83,633), and we lose to them 0W-32L either way.
+# Do not read Optuna rankings straight off: trial 82 reported +2,112 at 16 episodes
+# and measured -373 at 32. Only trials re-confirmed at 32 belong here.
+ANIMAL_PLAN = ['SHEEP', 'SHEEP', 'SHEEP', 'SHEEP', 'SHEEP', 'COW', 'COW', 'COW', 'COW', 'COW', 'COW', 'COW', 'COW']
+CROP_PLAN = [('STRAWBERRY', 4), ('WHEAT', 12)]
+HIRES = 11
 HIRE_SLOTS = 2              # market slots a single turn may spend on HIRE past 8
 # Of the 10 hour-0 order slots, how many go to HIRE; the rest of the crew is topped
 # up from hour 1 at HIRE_SLOTS per turn. Hour 0 sells into the fullest shed of the
 # day, so slots spent hiring are expensive there. Measured against the 8/0 split,
 # 8 seeds x 2 seats: 7 +4,673 / 6 +5,298 / 5 +4,321 / 4 +6,632 / 2 +4,343, all 16W-0L.
-HIRE_HOUR0 = 4
+HIRE_HOUR0 = 5
 # Rank sell orders by the value of the whole position, not the unit price: an
 # early slot is worth more than a late one and hour 0 only has a few. 16W-0L,
 # +1,835 against ranking by unit price.
 SELL_BY_VALUE = True
 FERT_RESERVE = 99           # fertilizer held back from market for the ongoing crops
 BUY_SLOTS = 1               # order slots per turn kept back from selling for purchases
-LAND_TARGET = 1             # quadrants to own; measured: expansion loses money
+LAND_TARGET = 2
                             # at our routing efficiency (see docs/META.md §5)
 LAND_RESERVE = 1000         # cash kept back after a land purchase
-ANIMAL_RESERVE = 0          # animals ahead to hold cash for before seeds/land
-ANIMAL_PIPELINE = 3         # animals allowed in the shed / in transit at once
+ANIMAL_RESERVE = 2
+ANIMAL_PIPELINE = 5
 PLANT_CAP = False           # cap PLANT tasks at seeds actually on hand
 STICKY = False              # keep a moving unit's target until it arrives
 BUNDLE = False              # persist short local work queues with deadline preemption
