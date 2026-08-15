@@ -749,3 +749,23 @@ unwatered days (`kaggriculture.py:770`), which is what the 13 weeds on the berry
 
 **Next lead: the 15% PASS.** An idle hand is a task the `_tasks` list never offered — find what bea's
 hands do in those slots before spending another sweep on constants.
+
+### v17 → v18: the idle hands moved the tile ceiling
+
+`DROP_IDLE` (v17, shipped 2026-08-15 ~20:30, ladder 714.9 unsettled) sends a hand with nothing to do
+to the shed with its load. PASS fell 15% → 10% of unit-actions, and the margin against
+`ref_broker_bea` went -47,463 → -43,502. It fired only 36 times a game, though, because the gate
+skipped any unit carrying feed wheat and the milking hands carry both. Relaxing it to
+`unfed and "WHEAT" in invs[i]` — hold the wheat back only while animals are still unfed — is
+49W-15L +272 against v17. The idle time is all late in the day: PASS by hour is 102 at hour 0, zero
+through hours 1-9, then 40-91 through hours 17-23, by which point the herd is fed.
+
+That freed labour moved a ceiling that had stood since the 28-tile rows. On the v17 build,
+8 melon + 28 wheat is 24W-8L **+1,018** and 8 melon + 30 wheat 27W-5L **+1,197**, where 28 tiles used
+to lose. On the relaxed-DROP build 30 / 32 / 36 wheat all measure 25W-7L +2,1xx — identical, because
+two quadrants hold 50 tiles less the 4-tile shed less 13 animal structures, so nothing past ~33 crop
+tiles ever lands. Still wrong: a third quadrant (0W-32L -4,534) and melon past 8 (10 melon -2,875).
+
+**v18 = relaxed DROP + `CROP_PLAN` 8 melon / 30 wheat**, 50W-14L **+1,203** worst -1,489 against
+`bench/v17.py` at 32 seeds × 2 seats. The independent opponents disagree in sign and cleo has the
+bigger vote: `ref_closer_cleo` -47,864 → **-42,581**, `ref_broker_bea` -43,502 → -45,684.

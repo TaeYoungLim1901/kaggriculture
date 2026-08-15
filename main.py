@@ -108,7 +108,11 @@ ANIMAL_PLAN = ['SHEEP', 'SHEEP', 'SHEEP', 'SHEEP', 'SHEEP', 'COW', 'COW', 'COW',
 # The old 28-tile labour ceiling was a wheat artifact -- 34 tiles works once 8 of
 # them are melon, which needs no replant cycle between day 1 and day 13.
 # 24W-0L +8,037 worst +6,351 against v14 (12 seeds x 2 seats, seed0 90001).
-CROP_PLAN = [("MELON", 8), ("WHEAT", 26)]   # crop -> tiles to keep planted
+# 8+28 (+1,018) and 8+30 (+1,197) both beat 8+26 once idle hands stopped PASSing,
+# and on the relaxed-DROP build 30/32/36 all measure 25W-7L +2,1xx -- identical,
+# because two quadrants hold 50 tiles less the 4-tile shed less 13 animal
+# structures, so anything past ~33 crop tiles never lands. 30 is "fill the board".
+CROP_PLAN = [("MELON", 8), ("WHEAT", 30)]   # crop -> tiles to keep planted
 # Re-measured under the 34-tile melon plan, 12 seeds x 2 seats against v15: 11 is
 # 24W-0L +3,660 and 13 is 0W-24L. The old "12 is 0W-32L" row was taken on the
 # 28-tile plan, where there was less to water and harvest.
@@ -915,11 +919,15 @@ def _act(obs):
     # 15% of our unit-actions are PASS against ref_broker_bea's 5%; this spends some
     # of them walking the goods in early. DROP empties the WHOLE inventory and
     # discards anything the shed has no room for (kaggriculture.py:330-343), so skip
-    # units carrying feed wheat and skip it when the shed cannot take the load.
+    # it when the shed cannot take the load, and hold a unit's feed wheat back only
+    # while animals are still unfed -- the idle time is all late in the day (PASS by
+    # hour runs 0 through hours 1-9 and 40-91 through hours 17-23), by which point the
+    # herd is fed and the wheat may as well go back on the pile. Gating on `invs[i]`
+    # alone left the milking hands carrying both, and DROP fired 36 times a game.
     if DROP_IDLE:
         room = SHED_CAP - sum(shed.values())
         for i, pos in enumerate(units):
-            if i in plan or not invs[i] or "WHEAT" in invs[i]:
+            if i in plan or not invs[i] or (unfed and "WHEAT" in invs[i]):
                 continue
             load = sum(invs[i].values())
             if load > room:

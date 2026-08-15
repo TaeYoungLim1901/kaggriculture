@@ -302,6 +302,19 @@ CONFIGS = {
     "b-w0L3": {"LAND_TARGET": 3,
                "CROP_PLAN": [("MELON", 8), ("STRAWBERRY", 44)]},
     "b-w6L2": {"CROP_PLAN": [("WHEAT", 6), ("MELON", 8), ("STRAWBERRY", 20)]},
+    # Tile count re-asked on the DROP_IDLE build. The 34-tile ceiling was measured
+    # when 15% of unit-actions were PASS; idle hands now spend some of that walking
+    # goods to the shed, so the labour budget is not what it was when 8+28 was
+    # rejected. Melon past 10 tiles still loses to its own glut curve.
+    "t-w28": {"CROP_PLAN": [("MELON", 8), ("WHEAT", 28)]},
+    "t-w30": {"CROP_PLAN": [("MELON", 8), ("WHEAT", 30)]},
+    "t-w34L3": {"LAND_TARGET": 3, "CROP_PLAN": [("MELON", 8), ("WHEAT", 34)]},
+    "t-m10": {"CROP_PLAN": [("MELON", 10), ("WHEAT", 26)]},
+    # 8+28 is +1,018 and 8+30 is +1,197 on the DROP_IDLE build, where 8+28 lost
+    # before it. A third quadrant is still wrong (-4,534) and melon still gluts past
+    # 8 (-2,875). Find where the wheat count turns over on the relaxed-DROP build.
+    "t-w32": {"CROP_PLAN": [("MELON", 8), ("WHEAT", 32)]},
+    "t-w36": {"CROP_PLAN": [("MELON", 8), ("WHEAT", 36)]},
     # SELL_MIN (reverted): dynamic slot allocation -- sells take every slot the
     # hires leave and a purchase that materialises evicts the cheapest sells down
     # to a floor, instead of BUY_SLOTS reserving slots whether or not anything is
