@@ -51,13 +51,23 @@ try:
     with tarfile.open(fileobj=io.BytesIO(base64.b64decode(PAYLOAD))) as tar:
         tar.extractall("/kaggle/working/repo", filter="data")
     os.chdir("/kaggle/working/repo")
-    import kaggle_environments as ke, importlib.metadata as md
     report("unpacked: " + ", ".join(sorted(os.listdir("."))))
-    report("kaggle-environments " + md.version("kaggle-environments"))
-    # Canary: a fixed pairing whose local value is known. A remote result that does
-    # not reproduce it is measuring a different environment and must not be used.
-    from kaggle_environments.envs.kaggriculture import kaggriculture as K
-    report("env check: COW=" + str(K.ANIMALS["COW"]) + " FLOOR=" + str(K.PRICE_FLOOR))
+    # The Kaggle image ships kaggle-environments 1.29.3, where a COW costs $600
+    # against the $400 the competition actually scores (docs/GAME_SPEC.md), so a
+    # kernel on the stock image measures a different game. Pin the version the
+    # ladder uses. Overwriting the installed module instead does NOT work: the
+    # image imports kaggle_environments before this script runs.
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--no-deps",
+                    "kaggle-environments=={version}"], check=True)
+    fingerprint = subprocess.run(
+        [sys.executable, "-c",
+         "import importlib.metadata as md;"
+         "from kaggle_environments.envs.kaggriculture import kaggriculture as K;"
+         "print(md.version('kaggle-environments'), K.ANIMALS['COW']['cost'],"
+         "      K.CROPS['STRAWBERRY']['seed'])"],
+        capture_output=True, text=True)
+    report("env fingerprint: " + fingerprint.stdout.strip() + fingerprint.stderr[-200:])
+    assert fingerprint.stdout.split()[1] == "400", "wrong env: COW cost is not 400"
     for opp in "{opp}".split(","):
         report("=== vs " + opp)
         completed = subprocess.run(
@@ -66,7 +76,10 @@ try:
             capture_output=True, text=True)
         report(completed.stdout.strip())
         if completed.returncode:
-            report("STDERR TAIL:" + chr(10) + completed.stderr[-3000:])
+            bad = [ln for ln in completed.stderr.splitlines()
+                   if "Error" in ln or "error" in ln or "Traceback" in ln
+                   or ln.startswith("  File")]
+            report("STDERR:" + chr(10) + chr(10).join(bad[-25:]))
 except Exception:
     report("KJOB FAILED" + chr(10) + traceback.format_exc())
 '''
@@ -87,11 +100,26 @@ def _sweep_configs():
     return sweep.CONFIGS
 
 
+ENV_DIR = Path("C:/Users/livde/AppData/Roaming/Python/Python314/site-packages/"
+               "kaggle_environments/envs/kaggriculture")
+
+
+def _env_version():
+    import importlib.metadata as md
+    return md.version("kaggle-environments")
+
+
 def _payload():
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
         for rel in PAYLOAD:
             tar.add(ROOT / rel, arcname=rel)
+        # The Kaggle image ships kaggle-environments 1.29.3, where a COW costs $600
+        # against $400 in the 1.32.6 rules the competition actually scores (see
+        # docs/GAME_SPEC.md). Kernels have no internet, so carry the env module and
+        # overwrite the installed one at run time.
+        for name in ("kaggriculture.py", "kaggriculture.json"):
+            tar.add(ENV_DIR / name, arcname=f"envsrc/{name}")
         for name in BENCH:
             path = ROOT / "bench" / name
             if path.exists():
@@ -103,7 +131,7 @@ def push(args):
     user = _user()
     slug = f"{user}/{args.name}"
     script = SCRIPT.format(payload=_payload(), configs=args.configs,
-                           opp=args.opp, games=args.games)
+                           opp=args.opp, games=args.games, version=_env_version())
     # A generated script with a syntax error runs, dies, and still reports
     # KernelWorkerStatus.COMPLETE with an empty output list -- indistinguishable from
     # a job that produced nothing. Version 1 of this kernel was exactly that. Never
@@ -118,7 +146,7 @@ def push(args):
         (folder / "kernel-metadata.json").write_text(json.dumps({
             "id": slug, "title": args.name, "code_file": f"{args.name}.py",
             "language": "python", "kernel_type": "script",
-            "is_private": True, "enable_gpu": False, "enable_internet": False,
+            "is_private": True, "enable_gpu": False, "enable_internet": True,
             "dataset_sources": [], "competition_sources": [], "kernel_sources": [],
         }, indent=2), encoding="utf-8")
         print(f"payload {len(script) // 1024} KB -> {slug}")
@@ -130,10 +158,14 @@ def status(args):
 
 
 def logs(args):
+    # One directory per slug. A shared one silently serves the PREVIOUS kernel's
+    # result.txt when a download fails, which is how the canary run reported the
+    # panel's numbers back.
+    dest = ROOT / ".lab" / "kaggle" / args.name
+    dest.mkdir(parents=True, exist_ok=True)
     completed = subprocess.run([KAGGLE, "kernels", "output", f"{_user()}/{args.name}",
-                                "-p", str(ROOT / ".lab" / "kaggle")],
-                               capture_output=True, text=True)
-    out = ROOT / ".lab" / "kaggle" / "result.txt"
+                                "-p", str(dest)], capture_output=True, text=True)
+    out = dest / "result.txt"
     if out.exists():
         print(out.read_text(encoding="utf-8").strip())
     else:
