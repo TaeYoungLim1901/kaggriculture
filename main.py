@@ -61,7 +61,13 @@ SELL_HOURS = tuple(range(0, 24))
 # against day 29 -- 27 31W-1L +967 / 24 32W-0L +1,439 / 20 32W-0L +2,384 /
 # 17 30W-2L +2,158 / 15 32W-0L +5,037 worst +1,875 / 12 32W-0L +4,601 /
 # 10 32W-0L +4,347. Peak at 15.
-LAST_DAY = 15
+# Re-measured on the 34-tile melon plan with HIRES 11 / HIRE_HOUR0 7, 12 seeds x 2
+# seats against v15, where the build itself scores +6,751: 6 +8,875 / 8 +8,902 /
+# 10 +8,928 / 11 +6,514 / 12 +8,975 worst +7,384 / 13 +8,586 / 14 +6,885 / 15
+# +6,751 / 18 +4,082 / 22 +3,280. A flat plateau from 6 to 13, because with no
+# ongoing crop planted FERT_RESERVE no longer binds and all this switches off is
+# the wheat feed reserve. Take the peak.
+LAST_DAY = 12
 
 SHED_CAP = 100
 SHED_TILES = [(4, 4), (5, 4), (4, 5), (5, 5)]
@@ -102,14 +108,21 @@ ANIMAL_PLAN = ['SHEEP', 'SHEEP', 'SHEEP', 'SHEEP', 'SHEEP', 'COW', 'COW', 'COW',
 # them are melon, which needs no replant cycle between day 1 and day 13.
 # 24W-0L +8,037 worst +6,351 against v14 (12 seeds x 2 seats, seed0 90001).
 CROP_PLAN = [("MELON", 8), ("WHEAT", 26)]   # crop -> tiles to keep planted
-HIRES = 10                  # per day; wage is sum(fib(0..n-1)), so 10 hands $88/day
-                            # measured from 11: 10 is 24W-8L +1,034, 12 is 0W-32L
+# Re-measured under the 34-tile melon plan, 12 seeds x 2 seats against v15: 11 is
+# 24W-0L +3,660 and 13 is 0W-24L. The old "12 is 0W-32L" row was taken on the
+# 28-tile plan, where there was less to water and harvest.
+HIRES = 11                  # per day; the env wage is fib(hires_today) with fib
+                            # indexed from 1, so 11 hands cost $232/day
 HIRE_SLOTS = 2              # market slots a single turn may spend on HIRE past 8
 # Of the 10 hour-0 order slots, how many go to HIRE; the rest of the crew is topped
 # up from hour 1 at HIRE_SLOTS per turn. Hour 0 sells into the fullest shed of the
 # day, so slots spent hiring are expensive there. Measured against the 8/0 split,
 # 8 seeds x 2 seats: 7 +4,673 / 6 +5,298 / 5 +4,321 / 4 +6,632 / 2 +4,343, all 16W-0L.
-HIRE_HOUR0 = 5
+# Re-measured with HIRES 11 on the 34-tile plan: 4 is 1W-23L -2,088, 7 is 24W-0L
+# +6,751 worst +5,222, 8 is 16W-8L +852 and 9 is 0W-24L -9,152. Filling the crew
+# in one turn is worth more than the hour-0 sell slots once there are 34 tiles to
+# service, but nine of the ten slots is too many -- nothing gets sold at all.
+HIRE_HOUR0 = 7
 # Rank sell orders by the value of the whole position, not the unit price: an
 # early slot is worth more than a late one and hour 0 only has a few. 16W-0L,
 # +1,835 against ranking by unit price.

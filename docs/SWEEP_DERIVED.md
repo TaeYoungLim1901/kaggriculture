@@ -529,3 +529,60 @@ vs `bench/v14.py` **64W-0L +8,105 worst +5,420** (32 seeds × 2 seats). Panel at
 `v3` 32W-0L **+25,387** (v14 +14,993), `v4` 32W-0L +29,402, `ref_broker_bea` **2W-30L -47,700**
 (v14 -58,898 — the first wins the lineage has ever taken off a reference agent),
 `ref_closer_cleo` 0W-32L -55,168. All four stages green.
+
+### v16 — the constants tuned on the 28-tile plan were all stale
+
+Three accounting bugs, found by a read-only audit against the env source (commit `4b0037b`):
+
+- `_fib` seeded at `(0, 1)` where the env seeds at `(1, 1)` (`kaggriculture.py:677-686`), so every
+  hire was priced one place too cheap — the 9th of the day at $21 against $34, ten hands at $88
+  against $143. Alone it is 3W-3L-**18T** mean +0: it does not bind at `HIRES` 10 / `HIRE_HOUR0` 5.
+  It binds at 11 / 7.
+- The wheat feed buy charged its budget `need_wheat * 40` while ordering `min(need_wheat, 20)` at the
+  quoted price, which has traded at $42.
+- `PICKUP` sized every errand against the shed stock at the top of the loop, so a second unit could be
+  sent for wheat the first had already taken. Unit actions resolve in sequence, so the second is
+  rejected outright. Two per episode on seed 7.
+
+Together 11W-3L-10T +253 — mostly ties, which is what three rarely-binding bugs should look like.
+Audit also cleared: p99 per-step 10.21 ms against the 1 s `actTimeout`, 719/719 deterministic, zero
+exceptions, every mirrored env constant correct, no episode-to-episode state leak.
+
+Then, on the 34-tile melon plan, 12 seeds × 2 seats against v15 (the build itself scores **+6,751**
+on that panel, and `FERT_RESERVE` 0 reproduces it exactly — with no ongoing crop planted it no longer
+binds):
+
+| knob | rows |
+| --- | --- |
+| `HIRES` | 11 **+3,660** · 12 +794 · 13 -4,763 |
+| `HIRE_HOUR0` (at 11) | 4 -2,088 · **7 +6,751 worst +5,222** · 8 +852 · 9 -9,152 |
+| `LAST_DAY` | 6 +8,875 · 8 +8,902 · 10 +8,928 · 11 +6,514 · **12 +8,975 worst +7,384** · 13 +8,586 · 14 +6,885 · 15 +6,751 · 18 +4,082 · 22 +3,280 |
+| `PRIO_COST` band 3 (CARE) | -500 +2,426 · -700 +2,343 |
+| `PRIO_COST` band 4 (COLLECT_FERTILIZER) | -600 **0W-24L -3,654** |
+| `PLANT_CAP` | True 19W-5L +250 worst -5,300 |
+| `DIST_WEIGHT` | 12 +3,317 · 30 +2,117 |
+| herd | 5S+9C +2,880 · GOOSE in any mix -10,876 to -60,592 |
+| crop plan | 8 melon + 28 wheat +2,489 |
+
+`HIRE_HOUR0` 7 is the biggest single row: with 34 tiles to service, filling the crew in one turn beats
+the hour-0 sell slots, but nine of the ten slots is too many and nothing gets sold at all. The
+`LAST_DAY` plateau from 6 to 13 is flat because with no ongoing crop `FERT_RESERVE` is dead and all
+`LAST_DAY` still switches off is the wheat feed reserve.
+
+**Two audit leads that did not survive measurement.** Codex costed the missed `COLLECT_FERTILIZER` at
+~$15,200 (160 collections against 312 available animal-days; `fertilizer_available` is a boolean reset
+daily and does not accumulate) — but prioritising it is 0W-24L -3,654. The walking costs more than the
+fertilizer is worth. And fertilizing WHEAT, which the env really does take from 4 units a planting to
+6 (`kaggriculture.py:418-431`), is 8W-16L -306 with net wheat production *falling*, because the hands
+have to fetch the fertilizer from the shed. Patch kept at `scratchpad/wheat-fert.patch`; do not
+re-propose either without freeing labour first.
+
+**Placement is not a lever.** Sorting the empty tiles so BUILD takes the tiles nearest the shed — where
+the four-visits-a-day animal traffic is — measures 12W-12L -143, and farthest-first, which is what the
+row-major scan already does, 16W-8L +242. The hands respawn on the shed-access tiles and the largest
+single workload is WATER, 34 tiles a day with no shed trip at all.
+
+**v16 = v15 + the three fixes + `HIRES` 11, `HIRE_HOUR0` 7, `LAST_DAY` 12.**
+vs `bench/v15.py` **64W-0L +7,785 worst +3,889** on the independent 32-seed panel. Panel at 32:
+v15 32W-0L +8,702, v14 32W-0L +10,941, v3 32W-0L +29,007, `ref_broker_bea` -49,333 (v15 -47,700),
+`ref_closer_cleo` -50,767 (v15 -55,168). All four stages green.

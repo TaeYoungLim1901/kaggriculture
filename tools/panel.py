@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from tools import sweep
 
-DEFAULT = ["bench/v14.py", "bench/v3.py", "bench/v4.py",
+DEFAULT = ["bench/v15.py", "bench/v14.py", "bench/v3.py",
            "bench/ref_broker_bea.py", "bench/ref_closer_cleo.py"]
 SETS = {"default": DEFAULT, "mirror": DEFAULT[:3], "refs": DEFAULT[3:]}
 BUILTINS = {"pass", "random", "starter"}

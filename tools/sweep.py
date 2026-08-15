@@ -224,6 +224,37 @@ CONFIGS = {
     "pfc": {"PRIO_COST": {0: -900, 1: -700, 2: -500, 3: -500, 4: -600, 5: -120, 6: -260}},
     "pd-300": {"PRIO_COST": {0: -900, 1: -700, 2: -500, 3: -300, 4: -220, 5: -300, 6: -260}},
     "pf-100": {"PRIO_COST": {0: -900, 1: -700, 2: -500, 3: -300, 4: -100, 5: -120, 6: -260}},
+    # HIRE_HOUR0 was tuned on the 28-tile plan. Under 34 tiles, HIRES 11 with
+    # HIRE_HOUR0 7 is 24W-0L +6,751 worst +5,222 where F4 is 1W-23L.
+    "v-F7": {"HIRE_HOUR0": 7},
+    "v-H11F7": {"HIRES": 11, "HIRE_HOUR0": 7},
+    "v-H11F8": {"HIRES": 11, "HIRE_HOUR0": 8},
+    "v-H11F9": {"HIRES": 11, "HIRE_HOUR0": 9},
+    "v-H12F7": {"HIRES": 12, "HIRE_HOUR0": 7},
+    "v-H11F7w28": {"HIRES": 11, "HIRE_HOUR0": 7, "CROP_PLAN": [("MELON", 8), ("WHEAT", 28)]},
+    "v-PCAP": {"PLANT_CAP": True},
+    # Raising COLLECT_FERTILIZER (band 4) is 0W-24L -3,654: the walking costs more
+    # than the fertilizer is worth, so the "152 units missed" leak is not a leak.
+    # Raising CARE (band 3) is 23W-1L +3,416. Re-measure the rest on HIRES 11 / F7.
+    "w-care500": {"PRIO_COST": {0: -900, 1: -700, 2: -500, 3: -500, 4: -220, 5: -120, 6: -260}},
+    "w-care700": {"PRIO_COST": {0: -900, 1: -700, 2: -500, 3: -700, 4: -220, 5: -120, 6: -260}},
+    "w-LD12": {"LAST_DAY": 12},
+    "w-LD18": {"LAST_DAY": 18},
+    "w-LD22": {"LAST_DAY": 22},
+    "w-W12": {"DIST_WEIGHT": 12},
+    "w-W30": {"DIST_WEIGHT": 30},
+    "w-FR0": {"FERT_RESERVE": 0},
+    "w-cow9": {"ANIMAL_PLAN": ["SHEEP"] * 5 + ["COW"] * 9},
+    "w-w28": {"CROP_PLAN": [("MELON", 8), ("WHEAT", 28)]},
+    # On the HIRES 11 / F7 / 34-tile build the baseline is +6,751 on this panel
+    # (w-FR0 reproduces it exactly, so FERT_RESERVE no longer binds with no ongoing
+    # crops planted). Only LAST_DAY moved it: 12 is +8,975. Find the peak.
+    "w-LD8": {"LAST_DAY": 8},
+    "w-LD10": {"LAST_DAY": 10},
+    "w-LD11": {"LAST_DAY": 11},
+    "w-LD13": {"LAST_DAY": 13},
+    "w-LD14": {"LAST_DAY": 14},
+    "w-LD6": {"LAST_DAY": 6},
     # Priority bands. With DIST_WEIGHT 20 a 200-point band gap is worth 10 tiles of
     # walking, so the shape of this dict is now a routing knob, not just an ordering.
     # Never swept before 2026-08-14: a constant at its first-commit default is not
