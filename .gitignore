@@ -3,3 +3,4 @@ __pycache__/
 .sweep/
 build/
 submission.tar.gz
+.lab/

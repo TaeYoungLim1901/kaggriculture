@@ -315,6 +315,26 @@ CONFIGS = {
     # 8 (-2,875). Find where the wheat count turns over on the relaxed-DROP build.
     "t-w32": {"CROP_PLAN": [("MELON", 8), ("WHEAT", 32)]},
     "t-w36": {"CROP_PLAN": [("MELON", 8), ("WHEAT", 36)]},
+    # Everything that was rejected "there is no labour for it" is worth re-asking on
+    # the v18 build, where PASS is down from 15% to ~10% and the board, not the crew,
+    # is what caps the crop tiles. (HIRES 12 is the pre-existing `H12` row below:
+    # still a loss at -735, and 13 at -6,233.)
+    # Berries, re-asked as a TIMING question rather than a tile-count one. A
+    # STRAWBERRY tile is worth ~$2,000 a season (10 yields x ~$200) against a wheat
+    # tile's ~$1,120, but only if it is in the ground early: first_yield_day 10 plus
+    # a 2-day interval and max_yield 10 means a berry planted on day 18 -- which is
+    # when our 40-berry variant finished its field -- produces once. ref_broker_bea
+    # has 2 berries down by day 6 and 27 by day 12, and pays for it by running only
+    # 4 animals on day 3 against our 3 sheep and 7 empty pastures. The seed loop is
+    # cash-bound, not throughput-bound (SEED_BATCH 5 per crop per turn), so the test
+    # is what the early capital buys, not how fast it is spent.
+    "e-str1": {"CROP_PLAN": [("WHEAT", 10), ("MELON", 8), ("STRAWBERRY", 20)],
+               "ANIMAL_RESERVE": 0},
+    "e-str2": {"CROP_PLAN": [("STRAWBERRY", 20), ("WHEAT", 10), ("MELON", 8)],
+               "ANIMAL_RESERVE": 0},
+    "e-str3": {"CROP_PLAN": [("WHEAT", 10), ("MELON", 8), ("STRAWBERRY", 20)],
+               "ANIMAL_RESERVE": 0, "ANIMAL_PIPELINE": 2,
+               "ANIMAL_PLAN": ["SHEEP"] * 4 + ["COW"] * 4},
     # SELL_MIN (reverted): dynamic slot allocation -- sells take every slot the
     # hires leave and a purchase that materialises evicts the cheapest sells down
     # to a floor, instead of BUY_SLOTS reserving slots whether or not anything is
