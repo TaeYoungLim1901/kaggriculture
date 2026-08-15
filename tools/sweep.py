@@ -24,7 +24,7 @@ STEPS = 720
 OVERRIDABLE = {
     "LAND_TARGET", "CROP_PLAN", "ANIMAL_PLAN", "HIRES", "SEED_BATCH", "LAND_RESERVE",
     "ANIMAL_RESERVE", "ANIMAL_PIPELINE", "DRAIN_SCALE", "PLANT_CAP", "DIST_WEIGHT",
-    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0", "SELL_BY_VALUE", "FERT_RESERVE", "PRIO_COST", "CASH_FLOOR", "FEED_DAYS", "SHED_CAP", "BUY_SLOTS", "SELL_MIN", "CROP_PLAN2", "PLAN_DAY", "SELL_FLOOR",
+    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0", "SELL_BY_VALUE", "FERT_RESERVE", "PRIO_COST", "CASH_FLOOR", "FEED_DAYS", "SHED_CAP", "BUY_SLOTS", "SELL_MIN", "CROP_PLAN2", "PLAN_DAY", "SELL_FLOOR", "DROP_IDLE",
 }
 SUMMARY = re.compile(
     r"(?P<w>\d+)W-(?P<l>\d+)L-(?P<t>\d+)T over (?P<n>\d+) games "
@@ -282,6 +282,26 @@ CONFIGS = {
     "a-cow13": {"ANIMAL_PLAN": ["COW"] * 13},
     "a-sheep13": {"ANIMAL_PLAN": ["SHEEP"] * 13},
     "a-s3c10": {"ANIMAL_PLAN": ["SHEEP"] * 3 + ["COW"] * 10},
+    # Optuna study `v16melon` (98 complete trials): its top rows agree on HIRES 12,
+    # HIRE_SLOTS 4 and a 6 SHEEP + 6 COW herd -- three knobs every one-at-a-time sweep
+    # rejected on its own. The hypothesis is that they only pay together: 12 hands need
+    # 4 hire slots to be filled at all, and a 12-animal herd to keep them busy.
+    "o-combo": {"HIRES": 12, "HIRE_SLOTS": 4,
+                "ANIMAL_PLAN": ["SHEEP"] * 6 + ["COW"] * 6},
+    "o-h12s4": {"HIRES": 12, "HIRE_SLOTS": 4},
+    "o-s6c6": {"ANIMAL_PLAN": ["SHEEP"] * 6 + ["COW"] * 6},
+    # Wheat OUT, not berries on top. Money trajectory vs ref_broker_bea on seed 90001:
+    # we lead to day 21 (44,929 vs 44,811) and finish 80,363 vs 133,978. bea works
+    # ~61 tiles (40 STRAWBERRY + 8 MELON + 6 WHEAT, 3 quadrants) on 306 HIRE orders
+    # against our 34 tiles on 303 -- so labour is not what stops us, the per-tile cost
+    # of wheat is: 26 wheat tiles replant every 4 days, a berry tile is planted once
+    # and only watered. Every earlier berry row kept the 26 wheat and added on top.
+    # Seed cost orders the list: WHEAT 10, MELON 80, STRAWBERRY 100.
+    "b-w6L3": {"LAND_TARGET": 3,
+               "CROP_PLAN": [("WHEAT", 6), ("MELON", 8), ("STRAWBERRY", 40)]},
+    "b-w0L3": {"LAND_TARGET": 3,
+               "CROP_PLAN": [("MELON", 8), ("STRAWBERRY", 44)]},
+    "b-w6L2": {"CROP_PLAN": [("WHEAT", 6), ("MELON", 8), ("STRAWBERRY", 20)]},
     # SELL_MIN (reverted): dynamic slot allocation -- sells take every slot the
     # hires leave and a purchase that materialises evicts the cheapest sells down
     # to a floor, instead of BUY_SLOTS reserving slots whether or not anything is

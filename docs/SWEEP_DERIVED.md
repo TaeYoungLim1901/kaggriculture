@@ -672,3 +672,80 @@ once reported +2,112 at 16 and measured -373 at 32).
 melon plan (`a-9`, `a-11`, `a-15`, `a-cow13`, `a-sheep13`, `a-s3c10`) — the "13 animals and 28 crops
 stands" row was measured on 28 wheat tiles with no melon, and the study's 6S+6C rows suggest it is
 stale. Run that block first next session.
+
+## Session 9, 2026-08-15 evening: four leads measured, all four closed
+
+Every row below is against the shipped v16 (`main.py` = `bench/v16.py`, snapshotted this session) on
+the mirror panel, `--seed0 90001`, unless the opponent is named.
+
+### The Optuna `v16melon` lead does not transfer (32 seeds × 2 seats)
+
+| config | levers | W-L | mean |
+| --- | --- | --- | ---: |
+| `o-combo` | `HIRES` 12 + `HIRE_SLOTS` 4 + 6S+6C | 12W-52L | **-4,361** |
+| `o-h12s4` | `HIRES` 12 + `HIRE_SLOTS` 4 | 2W-62L | **-2,437** |
+| `o-s6c6` | 6 SHEEP + 6 COW | 20W-44L | **-2,864** |
+
+The study's top rows were unanimous on all three and every combination loses. The hire knobs do not
+"only pay together" — the study was reading noise at 12 episodes. Study closed; do not resume it
+without a final stage of 32 episodes.
+
+### The animal/crop-tile trade is at its optimum (16 seeds × 2 seats)
+
+| config | herd / crops | W-L | mean |
+| --- | --- | --- | ---: |
+| `a-9` | 4S+5C, 8 melon + 30 wheat | 2W-30L | -9,150 |
+| `a-11` | 4S+7C, 8 melon + 28 wheat | 11W-21L | -1,723 |
+| `a-15` | 6S+9C, 8 melon + 24 wheat | 8W-24L | -4,166 |
+| `a-cow13` | 13 COW | 5W-27L | -11,532 |
+| `a-sheep13` | 13 SHEEP | 0W-32L | -36,856 |
+| `a-s3c10` | 3S+10C | 15W-17L | **+96** |
+
+13 animals stands, and the 5S+8C split is worth ~$36k over an all-sheep herd. `a-s3c10` is the
+no-effect signature — a balanced record at +96 means the split does not bind between 3/10 and 5/8.
+
+### The wheat round trip is not a leak
+
+`bookprobe` shows us selling 5,535 WHEAT for ~$217k and buying 5,411 back for ~$214k. Holding the
+`n_animals * 2` feed reserve through the `LAST_DAY` dump measures **3W-61L -2,794** at 32 seeds. The
+env quotes `BUY_PRODUCT` at *post-buy* inventory precisely so a round trip nets zero
+(`kaggriculture.py:585-588`), so the churn costs nothing and buys an early slot in the price race.
+Closed.
+
+### Wheat OUT, not berries on top — still a loss
+
+Every earlier berry row kept the 26 wheat tiles and added berries on top. `ref_broker_bea` does the
+opposite: it works ~61 tiles (40 STRAWBERRY + 8 MELON + 6 WHEAT, 3 quadrants) and almost no wheat.
+
+| config | plan | mirror | vs `ref_broker_bea` |
+| --- | --- | --- | ---: |
+| BASE (v16) | 8 melon + 26 wheat, `LAND_TARGET` 2 | — | -47,463 |
+| `b-w6L3` | 6 wheat + 8 melon + 40 straw, `LAND_TARGET` 3 | 0W-32L -30,122 | **-79,578** |
+| `b-w0L3` | 8 melon + 44 straw, `LAND_TARGET` 3 | 0W-32L -63,047 | **-102,943** |
+
+Monotone in how much wheat is removed. The plan is not the blocker and neither is the seed budget:
+`b-w6L3` reaches 40 STRAWBERRY on the board by day 18 and still finishes 44,077 against bea's 129,726.
+
+### Where the 50k against bea actually is
+
+Money by day, seed 90001, v16 vs `ref_broker_bea`: we lead to day 21 (44,929 vs 44,811) and lose the
+last third 80,363 vs 133,978. Unit-action histogram over the same episode:
+
+| verb | v16 | bea |
+| --- | ---: | ---: |
+| total unit-actions | 7,541 | 7,355 |
+| PASS | **1,133 (15%)** | **377 (5%)** |
+| WATER | 876 | 851 |
+| HARVEST | 234 | 338 |
+| PICKUP | 83 | 339 |
+| FERTILIZE | 0 | 107 |
+| DROP | 0 | 84 |
+| crew size held | 12 on 439 turns | 13 on 385 turns |
+
+Same action budget, same movement share, same crew. The difference is idle hands and what the busy
+ones do with the time. Note the berry variant *raises* PASS to 20% — more tiles did not soak up the
+idle, so the ceiling is not the tile count and not the crew size. Two crops die to a WEED after two
+unwatered days (`kaggriculture.py:770`), which is what the 13 weeds on the berry board are.
+
+**Next lead: the 15% PASS.** An idle hand is a task the `_tasks` list never offered — find what bea's
+hands do in those slots before spending another sweep on constants.

@@ -69,6 +69,7 @@ SELL_HOURS = tuple(range(0, 24))
 # the wheat feed reserve. Take the peak.
 LAST_DAY = 12
 
+DROP_IDLE = True            # idle hands walk harvested goods into the shed
 SHED_CAP = 100
 SHED_TILES = [(4, 4), (5, 4), (4, 5), (5, 5)]
 CASH_FLOOR = 250            # absolute minimum cash
@@ -907,6 +908,24 @@ def _act(obs):
     plan.update(errand)
     if not BUNDLE:
         _sticky_plan(plan, units, invs, tasks, day * 24 + hour)
+
+    # An idle hand is free labour, and `_market` can only sell what is in the SHED:
+    # HARVEST leaves the goods in the unit's inventory until the end-of-day drop, so
+    # on seed 90001 MILK sits there for 1,831 unit-turns, WOOL 1,438, MELON 948.
+    # 15% of our unit-actions are PASS against ref_broker_bea's 5%; this spends some
+    # of them walking the goods in early. DROP empties the WHOLE inventory and
+    # discards anything the shed has no room for (kaggriculture.py:330-343), so skip
+    # units carrying feed wheat and skip it when the shed cannot take the load.
+    if DROP_IDLE:
+        room = SHED_CAP - sum(shed.values())
+        for i, pos in enumerate(units):
+            if i in plan or not invs[i] or "WHEAT" in invs[i]:
+                continue
+            load = sum(invs[i].values())
+            if load > room:
+                continue
+            plan[i] = (min(SHED_TILES, key=lambda p: _dist(pos, p)), ["DROP"])
+            room -= load
 
     acts = []
     for i, pos in enumerate(units):
