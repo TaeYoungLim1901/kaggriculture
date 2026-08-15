@@ -52,13 +52,15 @@ try:
         tar.extractall("/kaggle/working/repo", filter="data")
     os.chdir("/kaggle/working/repo")
     report("unpacked: " + ", ".join(sorted(os.listdir("."))))
-    completed = subprocess.run(
-        [sys.executable, "tools/sweep.py", "{configs}", "--opp", "{opp}",
-         "--games", "{games}"],
-        capture_output=True, text=True)
-    report(completed.stdout.strip())
-    if completed.returncode:
-        report("STDERR TAIL:" + chr(10) + completed.stderr[-3000:])
+    for opp in "{opp}".split(","):
+        report("=== vs " + opp)
+        completed = subprocess.run(
+            [sys.executable, "tools/sweep.py", "{configs}", "--opp", opp,
+             "--games", "{games}"],
+            capture_output=True, text=True)
+        report(completed.stdout.strip())
+        if completed.returncode:
+            report("STDERR TAIL:" + chr(10) + completed.stderr[-3000:])
 except Exception:
     report("KJOB FAILED" + chr(10) + traceback.format_exc())
 '''
@@ -143,7 +145,7 @@ def main():
     p = sub.add_parser("push")
     p.add_argument("configs", help="comma-separated sweep config names")
     p.add_argument("--name", default="kaggri-sweep", help="kernel slug (reused on re-push)")
-    p.add_argument("--opp", default="main.py")
+    p.add_argument("--opp", default="main.py", help="one opponent, or a comma-separated panel")
     p.add_argument("--games", type=int, default=16)
     p.set_defaults(func=push)
     for name, fn in (("status", status), ("logs", logs)):
