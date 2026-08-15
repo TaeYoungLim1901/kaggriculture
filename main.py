@@ -391,6 +391,14 @@ def _tasks(scan, day, plant_want, build_want):
             continue
         age = day - t.get("planted_day", day)
         if not t.get("watered_today"):
+            # LAZY_WATER (reverted): an ongoing crop's yield comes from the day tick,
+            # not from watering (kaggriculture.py:774-787), so a berry survives on
+            # water every OTHER day -- which is how ref_broker_bea holds 54 crop tiles
+            # on 28 waterings a day. Real mechanism, no net gain: the fertilizer bonus
+            # needs `was_watered` on the production day, so the labour saved comes
+            # straight back out of yield. 28 berries measured -8,571 with it against
+            # -6,802 without, and it is inert here anyway -- neither WHEAT nor MELON
+            # is ongoing.
             out.append((1, pos, ["WATER"], None))
         ripe = age >= (crop["first"] if crop["ongoing"] else crop["max_day"])
         if ripe and t.get("yield_units", 0) > 0:

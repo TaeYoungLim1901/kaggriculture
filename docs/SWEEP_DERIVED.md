@@ -815,3 +815,38 @@ the Kaggle image's kaggle-environments 1.29.3, where a COW costs $600 against th
 competition scores; it reported BASE beating bea 11W-3L +62. With the version pinned, the kernel
 reproduces local numbers exactly (BASE vs v15 8W-0L +6,770 worst +5,053 in both places, and the bea
 and cleo margins above match the local runs to the dollar).
+
+### LAZY_WATER: a real mechanism that pays nothing
+
+An ongoing crop's yield comes from the end-of-day tick, not from watering
+(`kaggriculture.py:774-787`). Watering an ongoing crop only keeps it alive — two consecutive unwatered
+days turn the tile into a weed — and feeds the fertilizer bonus, which requires `was_watered` on the
+production day. So a strawberry survives on water every *other* day, and that is exactly how
+`ref_broker_bea` holds ~54 crop tiles on 28 waterings a day while we water 29 for 38 tiles.
+
+Implemented as `LAZY_WATER` (skip WATER on an ongoing crop whose `consecutive_unwatered` is 0) and
+measured on the halved budget, 16 seeds × 2 seats:
+
+| config | vs v18 | vs `ref_broker_bea` |
+| --- | --- | ---: |
+| 28 berries, 3 quadrants | 0W-32L **-8,571** (against -6,802 *without* lazy water) | -59,605 |
+| 40 berries, 3 quadrants | 0W-32L -20,133 | -68,153 |
+| 20 berries, 2 quadrants | 0W-32L -16,269 | -58,478 |
+| `LAZY_WATER` off | 5W-5L-**22T** +0 | -45,793 |
+
+The labour saved comes straight back out of yield: half the production days lose the fertilizer
+doubling. The 22 ties in the last row are the useful part — they prove the switch is inert on a plan
+whose crops are all non-ongoing, which WHEAT and MELON both are. Reverted; the finding is kept as a
+comment on the WATER task in case an ongoing crop ever earns its place.
+
+### The third quadrant does not pay either
+
+| config | vs v18 | vs `ref_broker_bea` |
+| --- | --- | ---: |
+| `q-w40L3` 8 melon + 40 wheat, `LAND_TARGET` 3 | 0W-32L -4,844 | -50,231 |
+| `q-w40L3r0` same, `LAND_RESERVE` 0 | 0W-32L **-25,177** | -72,051 |
+| `q-m16L3` 16 melon + 30 wheat, `LAND_RESERVE` 0 | 1W-31L -5,586 | -45,061 |
+| `q-a18L3` 18 animals, `LAND_RESERVE` 0 | 0W-32L -24,911 | -70,911 |
+
+Buying land *earlier* is much worse, not better: `LAND_RESERVE` 0 costs 20k against holding the
+reserve. Two quadrants, 38 crop tiles and 13 animals is the plateau for this architecture.

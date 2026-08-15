@@ -363,6 +363,13 @@ CONFIGS = {
     "q-a18L3": {"LAND_TARGET": 3, "LAND_RESERVE": 0,
                 "ANIMAL_PLAN": ["SHEEP"] * 7 + ["COW"] * 11,
                 "CROP_PLAN": [("MELON", 8), ("WHEAT", 30)]},
+    # LAZY_WATER halves what an ongoing crop costs in labour, so every berry row
+    # measured before it is void. These re-ask the berry question on that budget.
+    "y-b28L3": {"LAND_TARGET": 3,
+                "CROP_PLAN": [("WHEAT", 10), ("MELON", 8), ("STRAWBERRY", 28)]},
+    "y-b40L3": {"LAND_TARGET": 3,
+                "CROP_PLAN": [("WHEAT", 6), ("MELON", 8), ("STRAWBERRY", 40)]},
+    "y-b20L2": {"CROP_PLAN": [("WHEAT", 14), ("MELON", 8), ("STRAWBERRY", 20)]},
     # Geometry. reward is `money` and nothing else (kaggriculture.py:950), so a
     # symmetric board earns nothing for being symmetric -- but MOVE is 54% of our
     # unit-actions, and the board is currently filled row-major from the corner of NW
