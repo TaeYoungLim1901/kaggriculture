@@ -24,7 +24,7 @@ STEPS = 720
 OVERRIDABLE = {
     "LAND_TARGET", "CROP_PLAN", "ANIMAL_PLAN", "HIRES", "SEED_BATCH", "LAND_RESERVE",
     "ANIMAL_RESERVE", "ANIMAL_PIPELINE", "DRAIN_SCALE", "PLANT_CAP", "DIST_WEIGHT",
-    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0", "SELL_BY_VALUE", "FERT_RESERVE", "PRIO_COST", "CASH_FLOOR", "FEED_DAYS", "SHED_CAP", "BUY_SLOTS", "SELL_MIN", "CROP_PLAN2", "PLAN_DAY", "SELL_FLOOR", "DROP_IDLE",
+    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0", "SELL_BY_VALUE", "FERT_RESERVE", "PRIO_COST", "CASH_FLOOR", "FEED_DAYS", "SHED_CAP", "BUY_SLOTS", "SELL_MIN", "CROP_PLAN2", "PLAN_DAY", "SELL_FLOOR", "DROP_IDLE", "PLACE_ORDER",
 }
 SUMMARY = re.compile(
     r"(?P<w>\d+)W-(?P<l>\d+)L-(?P<t>\d+)T over (?P<n>\d+) games "
@@ -335,6 +335,28 @@ CONFIGS = {
     "e-str3": {"CROP_PLAN": [("WHEAT", 10), ("MELON", 8), ("STRAWBERRY", 20)],
                "ANIMAL_RESERVE": 0, "ANIMAL_PIPELINE": 2,
                "ANIMAL_PLAN": ["SHEEP"] * 4 + ["COW"] * 4},
+    # `tools/fillprobe.py` (executed trades, not requested ones) settles what the
+    # berry question actually is. Against ref_broker_bea on seed 90001 the two
+    # economies are level everywhere except one book: bea nets $132,724 to our
+    # $78,045 and its STRAWBERRY alone is $65,532 (268 units at ~$244). Our own
+    # 20-berry build hits the SAME per-tile yield -- 135 units off 20 tiles, 6.75
+    # each, against bea's 6.7 -- so the husbandry is fine and the tile count is the
+    # whole story. It paid for those 20 tiles out of the herd, though: FERTILIZER
+    # fell 263 -> 87 units and MILK 183 -> 125. So the test is 40 berries WITH the
+    # animals intact, which needs the third quadrant, re-asked now that idle hands
+    # are worth something (v16 measured this at -30,122 with PASS at 15%).
+    "z-b40L3": {"LAND_TARGET": 3,
+                "CROP_PLAN": [("WHEAT", 6), ("MELON", 8), ("STRAWBERRY", 40)]},
+    "z-b28L3": {"LAND_TARGET": 3,
+                "CROP_PLAN": [("WHEAT", 10), ("MELON", 8), ("STRAWBERRY", 28)]},
+    "z-b20L2": {"CROP_PLAN": [("WHEAT", 14), ("MELON", 8), ("STRAWBERRY", 20)]},
+    # Geometry. reward is `money` and nothing else (kaggriculture.py:950), so a
+    # symmetric board earns nothing for being symmetric -- but MOVE is 54% of our
+    # unit-actions, and the board is currently filled row-major from the corner of NW
+    # furthest from the shed. Nearest-first makes the farm a tight disk around the
+    # spawn. The old placement rows only reordered structures against crops.
+    "g-near": {"PLACE_ORDER": 1},
+    "g-far": {"PLACE_ORDER": -1},
     # SELL_MIN (reverted): dynamic slot allocation -- sells take every slot the
     # hires leave and a purchase that materialises evicts the cheapest sells down
     # to a floor, instead of BUY_SLOTS reserving slots whether or not anything is
