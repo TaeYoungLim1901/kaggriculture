@@ -349,6 +349,20 @@ CONFIGS = {
     "z-b28L3": {"LAND_TARGET": 3,
                 "CROP_PLAN": [("WHEAT", 10), ("MELON", 8), ("STRAWBERRY", 28)]},
     "z-b20L2": {"CROP_PLAN": [("WHEAT", 14), ("MELON", 8), ("STRAWBERRY", 20)]},
+    # The panel (5 opponents, `tools/kjob.py`) closed the berry line for good: the
+    # 28-berry build loses to v3, v14, v15, bea AND cleo. fillprobe says bea's entire
+    # edge is that one book ($65,532) and its non-berry economy is level with ours,
+    # so the remaining question is whether the third quadrant pays at all -- every
+    # 3-quadrant row so far also changed the crop mix, and land arrives around day 13
+    # because LAND_RESERVE holds $1,000 back on top of the price.
+    "q-w40L3": {"LAND_TARGET": 3, "CROP_PLAN": [("MELON", 8), ("WHEAT", 40)]},
+    "q-w40L3r0": {"LAND_TARGET": 3, "LAND_RESERVE": 0,
+                  "CROP_PLAN": [("MELON", 8), ("WHEAT", 40)]},
+    "q-m16L3": {"LAND_TARGET": 3, "LAND_RESERVE": 0,
+                "CROP_PLAN": [("MELON", 16), ("WHEAT", 30)]},
+    "q-a18L3": {"LAND_TARGET": 3, "LAND_RESERVE": 0,
+                "ANIMAL_PLAN": ["SHEEP"] * 7 + ["COW"] * 11,
+                "CROP_PLAN": [("MELON", 8), ("WHEAT", 30)]},
     # Geometry. reward is `money` and nothing else (kaggriculture.py:950), so a
     # symmetric board earns nothing for being symmetric -- but MOVE is 54% of our
     # unit-actions, and the board is currently filled row-major from the corner of NW

@@ -786,3 +786,32 @@ $8,728) where the same herd against `ref_broker_bea` gets **$234** (188 units fo
 build that shifts production between books is therefore judged partly on an artifact, which is why
 every accept decision now needs the mirror *and* an independent opponent to agree in sign
 (`docs/MISTAKES.md` row 10).
+
+### The berry line is closed on evidence, not on a mirror artifact
+
+`tools/kjob.py` runs a sweep against a panel of opponents on a free Kaggle CPU kernel. The 28-berry
+build (`z-b28L3`: 10 wheat + 8 melon + 28 strawberry, 3 quadrants — the best berry row ever measured)
+against v18, 8 seeds × 2 seats each:
+
+| opponent | v18 (BASE) | 28 berries |
+| --- | ---: | ---: |
+| `bench/v3.py` | 16W-0L +27,256 | 16W-0L +22,685 |
+| `bench/v14.py` | 16W-0L +11,581 | 16W-0L +6,289 |
+| `bench/v15.py` | 16W-0L +6,492 | 3W-13L **-2,194** |
+| `ref_broker_bea` | 0W-16L -45,684 | 0W-16L **-52,054** |
+| `ref_closer_cleo` | 0W-16L -42,581 | 0W-16L **-51,611** |
+
+Unanimous across five independent opponents, including the two that grow berries themselves. The
+mirror-panel bias is real but it was not what condemned berries.
+
+`tools/fillprobe.py` says where the remaining gap is and it is not recoverable by tuning: bea's
+**entire** advantage is the strawberry book ($65,532, 268 units at ~$244). Non-berry, the two
+economies are level — bea ~$80k against our ~$78k, and we are ahead on WOOL and FERTILIZER. Our own
+berry husbandry matches theirs per tile (6.75 units against 6.7); what we cannot do is carry 40 berry
+tiles without the herd collapsing (FERTILIZER 263 → 87 units, MILK 183 → 125).
+
+**A remote kernel is not evidence until it reproduces a local pairing.** The first panel run was on
+the Kaggle image's kaggle-environments 1.29.3, where a COW costs $600 against the $400 the
+competition scores; it reported BASE beating bea 11W-3L +62. With the version pinned, the kernel
+reproduces local numbers exactly (BASE vs v15 8W-0L +6,770 worst +5,053 in both places, and the bea
+and cleo margins above match the local runs to the dollar).
