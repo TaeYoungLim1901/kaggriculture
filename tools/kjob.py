@@ -81,10 +81,10 @@ try:
                                    capture_output=True, text=True)
         report(completed.stdout.strip()[-6000:])
         if completed.returncode:
-            bad = [ln for ln in completed.stderr.splitlines()
-                   if "Error" in ln or "error" in ln or "Traceback" in ln
-                   or ln.startswith("  File")]
-            report("STDERR:" + chr(10) + chr(10).join(bad[-25:]))
+            # Never filter this: a killed process (OOM, timeout) writes nothing that
+            # matches a keyword, and an empty STDERR section looks like a clean exit.
+            report("EXIT " + str(completed.returncode) + " STDERR TAIL:" + chr(10)
+                   + completed.stderr[-2500:])
     # Anything the job wrote under build/ comes home in the kernel output.
     if os.path.isdir("build"):
         for name in os.listdir("build"):

@@ -22,6 +22,11 @@ Read this file before a submission and after any context compaction.
 
 | 11 | Read a Kaggle-kernel sweep as a result without checking that the remote environment matches this one. The panel reported `BASE` beating `ref_broker_bea` 11W-3L **+62**, where the same pairing locally is 0W-16L **-47,463**, and v15 as 6W-10L -89 against a local 8W-0L +6,770 | One panel run, and it would have reversed a strategic call if believed | `tools/kjob.py` prints the remote `kaggle-environments` version and an env fingerprint (`ANIMALS["COW"]`, `PRICE_FLOOR`) in every run. **A remote number is not evidence until a known local pairing reproduces there** |
 
+| 12 | `tools/kjob.py logs` downloaded every kernel's output into one shared directory. When a download returned nothing it read the **previous** kernel's `result.txt` and printed it as the new result — the canary run "reported" the panel's numbers | Nearly diagnosed an env mismatch from the wrong kernel's output | `logs` writes to `.lab/kaggle/<slug>/`. Any cache keyed by *nothing* is a lie waiting to happen |
+| 13 | Filtered the remote job's stderr to lines containing `Error`/`Traceback`. A process killed by the OS writes none of those, so a dead job printed an empty `STDERR:` section that read like a clean exit | One anneal run diagnosed as "no error" when it had died | `kjob` reports the last 2,500 characters of stderr unfiltered on any non-zero exit. **Never filter the output of a failure you have not yet explained** |
+| 14 | Grepped `kjob logs` for a handful of patterns while diagnosing that same failure, which dropped the job's own stdout — the message that would have named the cause | The anneal-on-kernel failure is still unexplained | Read `.lab/kaggle/<slug>/result.txt` whole before concluding anything about a failure. Grep is for a result you already understand |
+| 15 | Edited `tools/sweep.py` with a line scanner that treated any line containing a constant name as a config row. It deleted the tail of `OVERRIDABLE`, the summary regex and 44 unrelated lines | Recovered with `git checkout --`; cost a rebuild of the edit | Structured Python is edited through `ast` spans (`key.lineno` → `value.end_lineno`), never by line matching. Commit before a mechanical bulk edit so `git checkout --` is always available |
+
 ## Rules that are not checkable by code
 
 - **Never edit `main.py` while a sweep is running.** `tools/sweep.py` materialises each variant from
@@ -32,4 +37,13 @@ Read this file before a submission and after any context compaction.
 - **Report the panel with the number.** "+997" means nothing without "vs `bench/v16.py`, 32 seeds ×
   2 seats, seed0 90001".
 - **A ladder score read the same day is not settled.** One submission read 650.6 / 712.8 / 660.5 in
-  a single day.
+  a single day, and v17 read 714.9 in the evening and 785.2 a few hours later.
+- **A remote job is not a local job.** Before trusting any number from a Kaggle kernel, check the env
+  fingerprint line it prints. The stock image is two minor versions behind and balances the game
+  differently.
+
+## Open
+
+- `tools/anneal.py` exits 1 on a Kaggle kernel with an empty stderr, at `--jobs 1` and `--jobs 2`,
+  while the identical command runs locally (24 evaluations in 148 s). Sweeps run there fine. Read the
+  whole `result.txt` next session — the job's own stdout was grepped away, per row 14.
