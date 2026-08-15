@@ -640,3 +640,35 @@ the knob for it and both directions lose — 0 is +4,473 and 2 is +4,853 against
 `BUY_SLOTS` 0/2, `SHED_CAP` 80/120 (**exactly** +8,975 — does not bind), `SEED_BATCH` 10 (likewise),
 `CASH_FLOOR` 1500 (-22,346), `LAND_RESERVE` 300 (-8,844), `PRIO_COST` band 2 -700 (+769), band 6 -500
 (+3,652), band 1 -900 (+2,381).
+
+### In flight at shutdown, 2026-08-15 19:30: Optuna study `v16melon`
+
+`python tools/tune.py --study v16melon --trials 200 --jobs 8`, opponent `bench/v15.py`, STAGES 4/12/32.
+Killed by the terminal at **111 trials, 98 complete**; `.sweep/tune.db` persists, so the same command
+resumes the study rather than restarting it.
+
+Two dimensions were dead in every earlier study: `HIRE_HOUR0` and `HIRE_SLOTS` were suggested and then
+never written into `overrides`. Fixed in this run, along with STRAWBERRY → MELON in the search space
+and `LAST_DAY` / `DIST_WEIGHT` added.
+
+Best five so far, stage-2 value against `bench/v15.py` (v16 itself measures **+7,785** on the
+independent 32-seed panel, so **nothing has beaten the shipped build yet**):
+
+| trial | value | params |
+| ---: | ---: | --- |
+| 97 | +7,273 | HIRES 12, HIRE_HOUR0 6, HIRE_SLOTS 4, LAST_DAY 10, DIST_WEIGHT 28, 6S+6C, 10 melon + 25 wheat |
+| 63 | +7,198 | HIRES 12, HIRE_HOUR0 7, HIRE_SLOTS 4, LAST_DAY 11, DIST_WEIGHT 24, 6S+6C, 11 melon + 24 wheat |
+| 61 | +7,031 | HIRES 12, HIRE_HOUR0 7, HIRE_SLOTS 4, LAST_DAY 11, DIST_WEIGHT 19, 6S+6C, 10 melon + 23 wheat |
+| 83/84 | +6,907 | HIRES 12, HIRE_HOUR0 7, HIRE_SLOTS 4, LAST_DAY 9, DIST_WEIGHT 24, 6S+6C, 10 melon + 26 wheat |
+
+The top of the table is unanimous on three things the shipped build does not do: `HIRES` **12** (one
+more hand), `HIRE_SLOTS` **4** (double), and a **6 SHEEP + 6 COW** herd (12 animals, one fewer, and
+the sheep/cow split even instead of 5/8). One-knob sweeps rejected `HIRES` 12 at +794 and 5S+9C at
++2,880 — the study says the hire knobs only pay together, which a one-at-a-time sweep cannot see.
+Confirm any of it at 32 episodes on the mirror panel before believing it ([[Optuna caveat]]: trial 82
+once reported +2,112 at 16 and measured -373 at 32).
+
+`tools/sweep.py` also carries an unrun `a-*` block re-asking the animal/crop-tile trade on the 34-tile
+melon plan (`a-9`, `a-11`, `a-15`, `a-cow13`, `a-sheep13`, `a-s3c10`) — the "13 animals and 28 crops
+stands" row was measured on 28 wheat tiles with no melon, and the study's 6S+6C rows suggest it is
+stale. Run that block first next session.

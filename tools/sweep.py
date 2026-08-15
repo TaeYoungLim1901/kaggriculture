@@ -24,7 +24,7 @@ STEPS = 720
 OVERRIDABLE = {
     "LAND_TARGET", "CROP_PLAN", "ANIMAL_PLAN", "HIRES", "SEED_BATCH", "LAND_RESERVE",
     "ANIMAL_RESERVE", "ANIMAL_PIPELINE", "DRAIN_SCALE", "PLANT_CAP", "DIST_WEIGHT",
-    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0", "SELL_BY_VALUE", "FERT_RESERVE", "PRIO_COST", "CASH_FLOOR", "FEED_DAYS", "SHED_CAP", "BUY_SLOTS", "CROP_PLAN2", "PLAN_DAY", "SELL_FLOOR",
+    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0", "SELL_BY_VALUE", "FERT_RESERVE", "PRIO_COST", "CASH_FLOOR", "FEED_DAYS", "SHED_CAP", "BUY_SLOTS", "SELL_MIN", "CROP_PLAN2", "PLAN_DAY", "SELL_FLOOR",
 }
 SUMMARY = re.compile(
     r"(?P<w>\d+)W-(?P<l>\d+)L-(?P<t>\d+)T over (?P<n>\d+) games "
@@ -269,6 +269,24 @@ CONFIGS = {
     "n-CF1500": {"CASH_FLOOR": 1500},
     "n-LR300": {"LAND_RESERVE": 300},
     "n-SB10": {"SEED_BATCH": 10},
+    # Animals against crop tiles, re-asked on the 34-tile melon plan. 13 animals is
+    # 52 tile-visits a day (FEED, CARE, HARVEST, COLLECT_FERTILIZER) competing with
+    # 34 waterings; the old "13 animals and 28 crops stands" row was measured when
+    # the crop side was 28 wheat tiles and there was no melon.
+    "a-9": {"ANIMAL_PLAN": ["SHEEP"] * 4 + ["COW"] * 5,
+            "CROP_PLAN": [("MELON", 8), ("WHEAT", 30)]},
+    "a-11": {"ANIMAL_PLAN": ["SHEEP"] * 4 + ["COW"] * 7,
+             "CROP_PLAN": [("MELON", 8), ("WHEAT", 28)]},
+    "a-15": {"ANIMAL_PLAN": ["SHEEP"] * 6 + ["COW"] * 9,
+             "CROP_PLAN": [("MELON", 8), ("WHEAT", 24)]},
+    "a-cow13": {"ANIMAL_PLAN": ["COW"] * 13},
+    "a-sheep13": {"ANIMAL_PLAN": ["SHEEP"] * 13},
+    "a-s3c10": {"ANIMAL_PLAN": ["SHEEP"] * 3 + ["COW"] * 10},
+    # SELL_MIN (reverted): dynamic slot allocation -- sells take every slot the
+    # hires leave and a purchase that materialises evicts the cheapest sells down
+    # to a floor, instead of BUY_SLOTS reserving slots whether or not anything is
+    # bought. 0 +2,915 / 1 +4,643 / 2 +5,130 / 3 +4,473, all under +8,975. An hour-0
+    # sell slot is worth more than the 3 BUY_SEED a season that the cap drops.
     # Staged plan: wheat and melon first, berries once the cash engine is running.
     # ref_broker_bea starts berries on day 4 and buys its second and third quadrants
     # on days 7 and 10. STRAWBERRY needs `first_yield_day` 10 plus a 2-day interval,

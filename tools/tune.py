@@ -9,20 +9,26 @@ import optuna
 ROOT = Path(__file__).resolve().parents[1]
 SCRATCH = ROOT / ".sweep"
 DB = SCRATCH / "tune.db"
-OPP = "bench/ref_broker_bea.py"
+OPP = "bench/v15.py"
 STAGES = [4, 12, 32]
+# HIRE_HOUR0 and HIRE_SLOTS used to be suggested here and then never written into
+# `overrides`, so two of the dimensions were pure noise -- every study before
+# 2026-08-15 searched nine knobs, not eleven. STRAWBERRY is out and MELON is in:
+# the berry line is closed (docs/SWEEP_DERIVED.md) and melon is what the plan runs.
 SEARCH_SPACE = {
-    "HIRES": (8, 14),
-    "HIRE_HOUR0": (1, 9),
+    "HIRES": (9, 13),
+    "HIRE_HOUR0": (4, 9),
     "HIRE_SLOTS": (1, 4),
-    "LAND_TARGET": (1, 2),
+    "LAND_TARGET": (2, 3),
     "ANIMAL_RESERVE": (0, 3),
-    "ANIMAL_PIPELINE": (1, 6),
-    "SEED_BATCH": (1, 6),
+    "ANIMAL_PIPELINE": (3, 7),
+    "SEED_BATCH": (3, 8),
+    "LAST_DAY": (6, 18),
+    "DIST_WEIGHT": (10, 30),
     "n_sheep": (2, 8),
-    "n_cow": (4, 10),
-    "n_strawberry": (4, 14),
-    "n_wheat": (4, 28),
+    "n_cow": (5, 11),
+    "n_melon": (4, 14),
+    "n_wheat": (16, 32),
 }
 
 sys.path.insert(0, str(ROOT))
@@ -64,15 +70,16 @@ def objective(trial, args):
     params = {key: trial.suggest_int(key, *bounds)
               for key, bounds in SEARCH_SPACE.items()}
     tiles = params["n_sheep"] + params["n_cow"]
-    tiles += params["n_strawberry"] + params["n_wheat"]
+    tiles += params["n_melon"] + params["n_wheat"]
     if tiles > 25 * params["LAND_TARGET"]:
         raise optuna.TrialPruned(f"{tiles} tiles exceed {25 * params['LAND_TARGET']}")
     overrides = {key: params[key] for key in (
-        "HIRES", "LAND_TARGET", "ANIMAL_RESERVE", "ANIMAL_PIPELINE", "SEED_BATCH"
+        "HIRES", "HIRE_HOUR0", "HIRE_SLOTS", "LAND_TARGET", "ANIMAL_RESERVE",
+        "ANIMAL_PIPELINE", "SEED_BATCH", "LAST_DAY", "DIST_WEIGHT",
     )}
     overrides.update({
         "ANIMAL_PLAN": ["SHEEP"] * params["n_sheep"] + ["COW"] * params["n_cow"],
-        "CROP_PLAN": [("STRAWBERRY", params["n_strawberry"]),
+        "CROP_PLAN": [("MELON", params["n_melon"]),
                       ("WHEAT", params["n_wheat"])],
     })
     seed0 = args.seed0
