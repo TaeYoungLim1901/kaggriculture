@@ -133,6 +133,59 @@ CONFIGS = {
     "k-berry8": {"CROP_PLAN": [("STRAWBERRY", 8), ("WHEAT", 12)]},
     "k-P4": {"ANIMAL_PIPELINE": 4},
     "k-L3": {"LAND_TARGET": 3},
+    # Session 8. ref_broker_bea runs 40 STRAWBERRY + 9 MELON on three quadrants and
+    # takes $154k of strawberry and $52k of melon out of a book we never touch,
+    # while our 24 wheat tiles net ~950 units of actual production -- the other
+    # 4,632 of the 4,804 wheat we "sell" is feed we bought back the same turn.
+    # Every earlier berry row capped at 10 tiles, which is below where the field pays.
+    "b-s20": {"LAND_TARGET": 3, "CROP_PLAN": [("STRAWBERRY", 20), ("WHEAT", 10)]},
+    "b-s30": {"LAND_TARGET": 3, "CROP_PLAN": [("STRAWBERRY", 30), ("WHEAT", 6)]},
+    "b-s40": {"LAND_TARGET": 3, "CROP_PLAN": [("STRAWBERRY", 40), ("WHEAT", 4)]},
+    "b-s40m": {"LAND_TARGET": 3, "CROP_PLAN": [("STRAWBERRY", 40), ("MELON", 9), ("WHEAT", 4)]},
+    "b-s20L2": {"CROP_PLAN": [("STRAWBERRY", 20), ("WHEAT", 8)]},
+    "b-m9": {"CROP_PLAN": [("STRAWBERRY", 2), ("MELON", 9), ("WHEAT", 17)]},
+    # Melon is the only product in no shop at all -- town-centre demand only -- and
+    # its glut curve is `sq` with amp 0.01, so the price only falls 250 -> 167 after
+    # 236 units. Nine tiles inside the 28-tile labour ceiling is 24W-0L +4,245.
+    "b-m6": {"CROP_PLAN": [("STRAWBERRY", 2), ("MELON", 6), ("WHEAT", 20)]},
+    "b-m12": {"CROP_PLAN": [("STRAWBERRY", 2), ("MELON", 12), ("WHEAT", 14)]},
+    "b-m15": {"CROP_PLAN": [("STRAWBERRY", 2), ("MELON", 15), ("WHEAT", 11)]},
+    "b-m18": {"CROP_PLAN": [("STRAWBERRY", 2), ("MELON", 18), ("WHEAT", 8)]},
+    "b-m9b0": {"CROP_PLAN": [("MELON", 9), ("WHEAT", 19)]},
+    "b-m9b4": {"CROP_PLAN": [("STRAWBERRY", 4), ("MELON", 9), ("WHEAT", 15)]},
+    # 0 berry + 9 melon + 19 wheat is 24W-0L +7,053 worst +4,086 -- the best row the
+    # lineage has measured. Melon 12+ loses: the glut curve is `sq`, so the price falls
+    # away quadratically once supply passes town-centre demand.
+    "b-m7b0": {"CROP_PLAN": [("MELON", 7), ("WHEAT", 21)]},
+    "b-m8b0": {"CROP_PLAN": [("MELON", 8), ("WHEAT", 20)]},
+    "b-m10b0": {"CROP_PLAN": [("MELON", 10), ("WHEAT", 18)]},
+    "b-m11b0": {"CROP_PLAN": [("MELON", 11), ("WHEAT", 17)]},
+    "b-m9w21": {"CROP_PLAN": [("MELON", 9), ("WHEAT", 21)]},
+    "b-m9w17": {"CROP_PLAN": [("MELON", 9), ("WHEAT", 17)]},
+    "b-m9w23": {"CROP_PLAN": [("MELON", 9), ("WHEAT", 23)]},
+    # The seed-buy loop in `_market` spends its budget in CROP_PLAN order, so a $100
+    # STRAWBERRY seed listed first starves the $10 WHEAT cash engine -- the 20-berry
+    # variant holds $118 at day 10 where BASE holds $7,552. These rows put WHEAT first.
+    # The 28-tile ceiling was a wheat artifact: 9 melon + 21 wheat is 30 tiles and wins.
+    "b-w20m8": {"CROP_PLAN": [("WHEAT", 20), ("MELON", 8)]},
+    "b-w22m8": {"CROP_PLAN": [("WHEAT", 22), ("MELON", 8)]},
+    "b-m8w22": {"CROP_PLAN": [("MELON", 8), ("WHEAT", 22)]},
+    "b-m8w24": {"CROP_PLAN": [("MELON", 8), ("WHEAT", 24)]},
+    "b-m8w26": {"CROP_PLAN": [("MELON", 8), ("WHEAT", 26)]},
+    "b-ws20L3": {"LAND_TARGET": 3, "CROP_PLAN": [("WHEAT", 10), ("STRAWBERRY", 20)]},
+    "b-ws20L2": {"CROP_PLAN": [("WHEAT", 8), ("STRAWBERRY", 20)]},
+    "b-ws10m8": {"CROP_PLAN": [("WHEAT", 20), ("STRAWBERRY", 10), ("MELON", 8)]},
+    # WHEAT-first loses for melon (+1,243 against +7,946 for the same tiles listed
+    # MELON-first): melon seed has to be bought early or the tile never reaches its
+    # day-10 first yield. It halves the berry loss (-47k -> -19k) but berries still lose.
+    # The tile budget keeps paying past the old 28-tile ceiling, so push it.
+    "b-m8w28": {"CROP_PLAN": [("MELON", 8), ("WHEAT", 28)]},
+    "b-m8w30": {"CROP_PLAN": [("MELON", 8), ("WHEAT", 30)]},
+    "b-m8w32L3": {"LAND_TARGET": 3, "CROP_PLAN": [("MELON", 8), ("WHEAT", 32)]},
+    "b-m8w26L3": {"LAND_TARGET": 3, "CROP_PLAN": [("MELON", 8), ("WHEAT", 26)]},
+    "b-m10w26": {"CROP_PLAN": [("MELON", 10), ("WHEAT", 26)]},
+    "b-m12w26": {"CROP_PLAN": [("MELON", 12), ("WHEAT", 26)]},
+    "b-m6w26": {"CROP_PLAN": [("MELON", 6), ("WHEAT", 26)]},
     # Priority bands. With DIST_WEIGHT 20 a 200-point band gap is worth 10 tiles of
     # walking, so the shape of this dict is now a routing knob, not just an ordering.
     # Never swept before 2026-08-14: a constant at its first-commit default is not
@@ -400,7 +453,7 @@ def main():
     ap.add_argument("--opp", default=OPP)
     ap.add_argument("--games", type=int, default=GAMES)
     args = ap.parse_args()
-    names = list(CONFIGS) if args.config == "all" else [args.config]
+    names = list(CONFIGS) if args.config == "all" else args.config.split(",")
     if any(name not in CONFIGS for name in names):
         raise SystemExit(f"config must be one of {', '.join(CONFIGS)}, or all")
 

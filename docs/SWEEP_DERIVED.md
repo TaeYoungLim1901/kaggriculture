@@ -443,3 +443,89 @@ Against the two strongest benches it is mixed: meta bench -60,454 against v13's 
 Trading animals for crop tiles at a constant labour cost does not pay: 11 animals + 31 crops is
 14W-18L -179 (neutral but with a -8,056 worst case) and 15 animals + 25 crops is 6W-26L -4,501.
 13 animals + 28 crops stands.
+
+## Session 8 — read the shared order book, not our own order list
+
+`tools/bookprobe.py` (new) replays a finished episode and prints the per-day price and inventory of
+every product plus **both** players' order streams. `tools/slotprobe.py` only ever saw the list we
+returned from `_market`, so it could not show what the opponent was doing to the prices we sell into.
+
+### What the book looks like against `ref_broker_bea` (seed 7)
+
+| product | day 0 | day 29 | we sold | bea sold | our revenue | bea revenue |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| WHEAT | 25 | 51 | 4,804 | 1,143 | 220,872 | 48,909 |
+| STRAWBERRY | 120 | **243** | 20 | **651** | 4,382 | **154,626** |
+| MELON | 250 | 167 | 0 | **236** | 0 | **52,533** |
+| MILK | 160 | **1** | 201 | 691 | **1,881** | 14,498 |
+| WOOL | 200 | **1** | 155 | 390 | 6,567 | 3,703 |
+| FERTILIZER | 100 | 16 | 245 | 445 | 12,993 | 22,313 |
+
+Three facts fall out of that table.
+
+**1. Our wheat revenue is mostly churn.** We also *buy* 4,632 WHEAT (`BUY_PRODUCT`, 374 orders) for
+-213,880 against the 220,872 we sell. Net production is ~950 units — 40 per tile from 24 tiles, which
+is what `max_yield 6` over six replant cycles predicts. The feed loop buys wheat up to
+`n_animals * 2` and the sell loop dumps everything above that same threshold in the *same* turn, so
+half of every day's order slots go to a round trip worth about $1.5 a unit. The 24 wheat tiles are a
+~$43k business, not a $220k one.
+
+**2. Strawberry and melon are an untouched book.** STRAWBERRY *rises* from 120 to 243 while bea takes
+651 units out of it, because the town drains it faster than one player can supply it (below-I0 branch,
+`sqrt`, `below_target 0.70`). MELON is in no shop at all — town-centre demand only — and still pays
+bea $222 a unit. We sell 20 strawberries and zero melon all season.
+
+**3. The animals are being priced out from under us.** MILK goes to $1 by day 17 because bea sells 691
+of it; our 201 milk earns $1,881, against $38,520 in the same matchup versus `bench/v3.py`. WOOL is
+even more brittle: `above_func sq`, `above_target 3.20`, `T 105` means ~59 units above I0 takes the
+price from 200 to the floor. Milk and wool revenue is a function of what the *opponent* does, not of
+our herd.
+
+### The board that beats us
+
+`ref_broker_bea` at day 20 (seed 7): **40 STRAWBERRY, 9 MELON, 3 WHEAT**, 8 COW, 5 SHEEP, three
+quadrants (`BUY_LAND` × 2). Ours: 24 WHEAT, 2 STRAWBERRY, 10 WEED, one extra quadrant. Money is level
+at day 20 (19,801 vs 20,899) and then splits — day 25 21,829 vs 54,154, day 29 24,872 vs 78,221.
+Strawberry pays from `first_yield_day 10` onward and compounds; wheat is flat.
+
+Every berry row in this file caps at 10 strawberry tiles, and the 28-tile labour ceiling above was
+measured on a wheat-heavy mix — wheat needs a replant every cycle, an ongoing crop does not. The
+ceiling has never been measured for a field that is mostly strawberry.
+
+### Melon is the win; the strawberry field is not (yet)
+
+Mirror panel, 12 seeds × 2 seats, seed0 90001, against the shipped v14:
+
+| crop plan | tiles | W-L | mean | worst |
+| --- | ---: | --- | ---: | ---: |
+| 20 / 30 / 40 STRAWBERRY (`LAND_TARGET` 3) | 30-44 | 0W-24L | -47k to -50k | -73,831 |
+| 40 STRAWBERRY + 9 MELON | 53 | 0W-24L | -38,487 | -56,678 |
+| `LAND_TARGET` 3 alone | 28 | 0W-24L | -2,676 | -3,910 |
+| 2 berry + 9 MELON + 17 wheat | 28 | 24W-0L | +4,245 | +582 |
+| 9 MELON + 19 wheat | 28 | 24W-0L | +7,053 | +4,086 |
+| 8 MELON + 20 wheat | 28 | 24W-0L | +7,946 | +6,286 |
+| 8 MELON + 24 wheat | 32 | 24W-0L | +7,982 | +6,508 |
+| **8 MELON + 26 wheat** | **34** | **24W-0L** | **+8,037** | **+6,351** |
+| 8 MELON + 28 / 30 wheat | 36 / 38 | 24W-0L | +7,552 / +7,529 | |
+| 10 / 12 MELON + 26 wheat | 36 / 38 | 24W-0L / 6W-18L | +6,367 / -433 | |
+| 8 MELON + 26 or 32 wheat, `LAND_TARGET` 3 | | 24W-0L | +4,926 / +5,353 | |
+
+**The 28-tile labour ceiling was a wheat artifact.** 34 tiles works as soon as 8 of them are melon:
+a melon tile is planted once and then only watered until day 13, where a wheat tile needs a replant
+every cycle. Melon past 10 tiles loses — its glut curve is `sq` (amp `3.6·250/300² = 0.01`), so
+`p(x) = 250 - 0.01x²` and the first floor quote is 158 units above I0. Eight tiles yield 12 units each
+over two plantings, ~96 units, which sits on the flat part of that shelf.
+
+`CROP_PLAN` order is load-bearing: the seed-buy loop in `_market` spends its budget in list order, so
+a $100 STRAWBERRY seed listed ahead of the $10 WHEAT seed starves the cash engine — the 20-berry
+variant holds $118 on day 10 where the shipped build holds $7,552. Putting WHEAT first halves the
+berry loss (-47,004 → -18,972) but it still loses 0W-24L, and for melon it *costs* +6,703
+(8 melon + 20 wheat is +7,946 melon-first and +1,243 wheat-first — melon seed has to be in the ground
+early or the tile never reaches its day-10 first yield). The berry field is a real strategy that our
+opening cannot finance; melon is the part of it we can reach today.
+
+**v15 = `CROP_PLAN = [("MELON", 8), ("WHEAT", 26)]`, everything else unchanged.**
+vs `bench/v14.py` **64W-0L +8,105 worst +5,420** (32 seeds × 2 seats). Panel at 32 episodes:
+`v3` 32W-0L **+25,387** (v14 +14,993), `v4` 32W-0L +29,402, `ref_broker_bea` **2W-30L -47,700**
+(v14 -58,898 — the first wins the lineage has ever taken off a reference agent),
+`ref_closer_cleo` 0W-32L -55,168. All four stages green.

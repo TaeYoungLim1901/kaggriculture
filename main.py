@@ -94,7 +94,14 @@ ANIMAL_PLAN = ['SHEEP', 'SHEEP', 'SHEEP', 'SHEEP', 'SHEEP', 'COW', 'COW', 'COW',
 # animals. Within that budget wheat wins the room -- it is the price weapon (see
 # LAST_DAY) and its price does not floor. 32 paired episodes: 0 berry +800 /
 # 1 +904 / 2 +2,735 / 4 baseline / 8 with 20 wheat 0W-32L.
-CROP_PLAN = [("STRAWBERRY", 2), ("WHEAT", 26)]   # crop -> tiles to keep planted
+# MELON is the only product in no SHOPS entry, so the only competition for its
+# order book is the opponent. Its glut curve is `sq` (amp 0.01), which keeps the
+# price near $250 for the first ~100 units and then falls away fast: eight tiles
+# produce 12 units each over two plantings, ~96 units, just inside that shelf.
+# The old 28-tile labour ceiling was a wheat artifact -- 34 tiles works once 8 of
+# them are melon, which needs no replant cycle between day 1 and day 13.
+# 24W-0L +8,037 worst +6,351 against v14 (12 seeds x 2 seats, seed0 90001).
+CROP_PLAN = [("MELON", 8), ("WHEAT", 26)]   # crop -> tiles to keep planted
 HIRES = 10                  # per day; wage is sum(fib(0..n-1)), so 10 hands $88/day
                             # measured from 11: 10 is 24W-8L +1,034, 12 is 0W-32L
 HIRE_SLOTS = 2              # market slots a single turn may spend on HIRE past 8
