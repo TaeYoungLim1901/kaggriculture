@@ -1,5 +1,11 @@
 """Shared order-book probe: price/inventory trajectory and BOTH players' orders.
 
+WARNING: the unit counts and revenue here are orders as PLACED, not trades that
+settled. An order is quoted per unit and abandoned the moment one unit fails
+(`kaggriculture.py:600-612`), so this overstates volume -- it once read as a
+$217k wheat business that nets $5k. Use `tools/fillprobe.py` for executed trades;
+this file is for the price/inventory trajectory and for what the opponent tried.
+
 `tools/slotprobe.py` only sees our own `_market` return value. This reads the
 finished episode instead, so it shows what the opponent actually put on the book
 turn by turn and what the price did as a result.

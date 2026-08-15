@@ -24,7 +24,7 @@ STEPS = 720
 OVERRIDABLE = {
     "LAND_TARGET", "CROP_PLAN", "ANIMAL_PLAN", "HIRES", "SEED_BATCH", "LAND_RESERVE",
     "ANIMAL_RESERVE", "ANIMAL_PIPELINE", "DRAIN_SCALE", "PLANT_CAP", "DIST_WEIGHT",
-    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0", "SELL_BY_VALUE", "FERT_RESERVE", "PRIO_COST", "CASH_FLOOR", "FEED_DAYS", "SHED_CAP", "BUY_SLOTS", "SELL_MIN", "CROP_PLAN2", "PLAN_DAY", "SELL_FLOOR", "DROP_IDLE", "PLACE_ORDER",
+    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0", "SELL_BY_VALUE", "FERT_RESERVE", "PRIO_COST", "CASH_FLOOR", "FEED_DAYS", "SHED_CAP", "BUY_SLOTS", "SELL_MIN", "DROP_IDLE", "PLACE_ORDER",
 }
 SUMMARY = re.compile(
     r"(?P<w>\d+)W-(?P<l>\d+)L-(?P<t>\d+)T over (?P<n>\d+) games "
@@ -227,7 +227,6 @@ CONFIGS = {
     # HIRE_HOUR0 was tuned on the 28-tile plan. Under 34 tiles, HIRES 11 with
     # HIRE_HOUR0 7 is 24W-0L +6,751 worst +5,222 where F4 is 1W-23L.
     "v-F7": {"HIRE_HOUR0": 7},
-    "v-H11F7": {"HIRES": 11, "HIRE_HOUR0": 7},
     "v-H11F8": {"HIRES": 11, "HIRE_HOUR0": 8},
     "v-H11F9": {"HIRES": 11, "HIRE_HOUR0": 9},
     "v-H12F7": {"HIRES": 12, "HIRE_HOUR0": 7},
@@ -366,29 +365,10 @@ CONFIGS = {
     # ref_broker_bea starts berries on day 4 and buys its second and third quadrants
     # on days 7 and 10. STRAWBERRY needs `first_yield_day` 10 plus a 2-day interval,
     # so a berry planted after ~day 16 barely pays for its own $100 seed.
-    "s-d5L3": {"LAND_TARGET": 3, "PLAN_DAY": 5,
-               "CROP_PLAN2": [("MELON", 8), ("WHEAT", 26), ("STRAWBERRY", 16)]},
-    "s-d8L3": {"LAND_TARGET": 3, "PLAN_DAY": 8,
-               "CROP_PLAN2": [("MELON", 8), ("WHEAT", 26), ("STRAWBERRY", 16)]},
-    "s-d12L3": {"LAND_TARGET": 3, "PLAN_DAY": 12,
-                "CROP_PLAN2": [("MELON", 8), ("WHEAT", 26), ("STRAWBERRY", 16)]},
-    "s-d8L3b8": {"LAND_TARGET": 3, "PLAN_DAY": 8,
-                 "CROP_PLAN2": [("MELON", 8), ("WHEAT", 26), ("STRAWBERRY", 8)]},
-    "s-d8L3b28": {"LAND_TARGET": 3, "PLAN_DAY": 8,
-                  "CROP_PLAN2": [("MELON", 8), ("WHEAT", 26), ("STRAWBERRY", 28)]},
-    "s-d8L2b8": {"PLAN_DAY": 8,
-                 "CROP_PLAN2": [("MELON", 8), ("WHEAT", 20), ("STRAWBERRY", 8)]},
-    "s-d8L3m": {"LAND_TARGET": 3, "PLAN_DAY": 8,
-                "CROP_PLAN2": [("MELON", 16), ("WHEAT", 26)]},
     # SELL_FLOOR (reverted): a price gate on which goods get an order slot.
     # Monotone loss against the +8,975 baseline -- 0.10 +8,130, 0.20 +7,445,
     # 0.30 +7,150, 0.50 +2,764, 0.70 +3,530. Selling wool at $1 still beats not
     # selling it: the goods are already grown and only hour 0 is slot-bound.
-    "f-10": {"SELL_FLOOR": 0.10},
-    "f-20": {"SELL_FLOOR": 0.20},
-    "f-30": {"SELL_FLOOR": 0.30},
-    "f-50": {"SELL_FLOOR": 0.50},
-    "f-70": {"SELL_FLOOR": 0.70},
     # Priority bands. With DIST_WEIGHT 20 a 200-point band gap is worth 10 tiles of
     # walking, so the shape of this dict is now a routing knob, not just an ordering.
     # Never swept before 2026-08-14: a constant at its first-commit default is not
@@ -566,7 +546,6 @@ CONFIGS = {
     "R2c": {"ANIMAL_RESERVE": 2, "PLANT_CAP": True},
     "W5": {"DIST_WEIGHT": 5},
     "W10": {"DIST_WEIGHT": 10},
-    "W20": {"DIST_WEIGHT": 20},
     "W40": {"DIST_WEIGHT": 40},
     "XW5": {"LAND_TARGET": 2, "ANIMAL_RESERVE": 3, "PLANT_CAP": True,
             "CROP_PLAN": [("MELON", 12), ("WHEAT", 5)], "DIST_WEIGHT": 5},

@@ -362,9 +362,37 @@ def _run_check(name, check, failures):
         print(f"PASS {name}")
 
 
+def _check_sweep_configs():
+    """Every sweep row must be reachable and must override a real constant.
+
+    A duplicate key in `CONFIGS` is silently shadowed by the later one, so a sweep
+    can report a row it never ran (an `H12` was added twice on 2026-08-15). An
+    override naming a constant that is not in `OVERRIDABLE`, or not in `main.py`,
+    is dropped just as quietly and the row measures the baseline.
+    """
+    import ast
+    source = (ROOT / "tools" / "sweep.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    configs = next(node.value for node in ast.walk(tree)
+                   if isinstance(node, ast.Assign)
+                   and getattr(node.targets[0], "id", "") == "CONFIGS")
+    names = [key.value for key in configs.keys if isinstance(key, ast.Constant)]
+    duplicates = sorted({n for n in names if names.count(n) > 1})
+    assert not duplicates, f"duplicate sweep config keys: {duplicates}"
+
+    sys.path.insert(0, str(ROOT / "tools"))
+    import sweep
+    for name, overrides in sweep.CONFIGS.items():
+        unknown = [k for k in overrides if k not in sweep.OVERRIDABLE]
+        assert not unknown, f"{name}: not in OVERRIDABLE: {unknown}"
+        missing = [k for k in overrides if not hasattr(submission, k)]
+        assert not missing, f"{name}: no such constant in main.py: {missing}"
+
+
 def main():
     episodes = [_run_episode(seat) for seat in (0, 1)]
     failures = []
+    _run_check("sweep configs", _check_sweep_configs, failures)
     _run_check("determinism", lambda: _check_determinism(episodes), failures)
     _run_check("never raises", lambda: _check_never_raises(episodes), failures)
     _run_check("action schema", lambda: _check_schema(episodes), failures)

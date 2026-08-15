@@ -99,6 +99,21 @@ There is no dataset — the "data" is the environment itself, shipped inside `ka
    [(s.ref, s.status, s.error_description) for s in api.competition_submissions("kaggriculture")]
    ```
 
+## 3b. Mistakes
+
+`docs/MISTAKES.md` is the ledger: every mistake that cost us, and the guard that now prevents it.
+Read it before a submission and after any context compaction. **When something goes wrong, the fix is
+not finished until the ledger has a row and that row names a check** — a new `tests/test_invariants.py`
+case, an assert in the tool that failed, or a rule in this file.
+
+Two that no code can catch:
+
+- Never edit `main.py` while a sweep is running. `tools/sweep.py` materialises each variant *at the
+  moment it runs that row*, so an edit halfway through silently changes every later row.
+- Background runs redirect to a file (`> "$env:TEMP\x.txt" 2>&1`) and are read back from it. A
+  PowerShell background job piped through `Select-Object` has twice returned an empty file with
+  exit 0.
+
 ## 4. Bug checkers — one per stage, run them in order
 
 Long contexts drift and drop invariants. Do not eyeball a diff; run the stage that matches the
