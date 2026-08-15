@@ -41,7 +41,7 @@ def load_blob(path):
     return json.loads(zlib.decompress(base64.b85decode(encoded)))
 
 
-def bake_blob(blob_path, output=None):
+def bake_blob(blob_path, output=None, hybrid=False):
     blob_path = Path(blob_path).resolve()
     if not blob_path.is_file():
         raise FileNotFoundError(blob_path)
@@ -74,11 +74,21 @@ def _trace_pass(obs):
     return {{"farmer": ["PASS"], "hands": [["PASS"] for _ in (hands or [])], "market": []}}
 
 
+_HYBRID_MARKET = {hybrid!r}
+
+
 def agent(obs):
     try:
         step = _trace_step(obs)
         if 0 <= step < len(_ACTIONS):
-            return copy.deepcopy(_ACTIONS[step])
+            action = copy.deepcopy(_ACTIONS[step])
+            if _HYBRID_MARKET:
+                # Field work off the trace, market orders live. The reference dataset
+                # says tiers 6-9 share one field plan and separate only on the market
+                # layer, so a recorded market queue is the half worth throwing away:
+                # it was priced against the opponent present at record time.
+                action["market"] = _reactive_agent(obs).get("market", [])
+            return action
         return _reactive_agent(obs)
     except Exception:
         try:
@@ -100,8 +110,12 @@ def agent(obs):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("blob", help="record.py output file")
+    parser.add_argument("--hybrid", action="store_true",
+                        help="replay only the unit actions; take market orders live "
+                             "from the reactive agent")
+    parser.add_argument("--out", default=None)
     args = parser.parse_args()
-    bake_blob(args.blob)
+    bake_blob(args.blob, args.out, args.hybrid)
 
 
 if __name__ == "__main__":
