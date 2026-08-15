@@ -340,6 +340,18 @@ def _check_herd_cap(episodes):
             assert owned <= cap, f"own {owned} animals, plan is {cap} (d{day} h{hour})"
 
 
+def _check_hire_wage(episodes):
+    """_fib must agree with the env: fib(0) = 1, not 0.
+
+    Seeding at (0, 1) priced every hire one place too cheap -- the 9th hire of the
+    day at $21 against the $34 the env charges -- so the affordability guard could
+    request a hire it could not pay for and burn the order slot.
+    """
+    expected = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+    got = [submission._fib(n) for n in range(len(expected))]
+    assert got == expected, f"_fib {got} != env {expected}"
+
+
 def _run_check(name, check, failures):
     try:
         check()
@@ -359,6 +371,7 @@ def main():
     _run_check("no-op rate", lambda: _check_noops(episodes), failures)
     _run_check("economic floor", lambda: _check_economics(episodes), failures)
     _run_check("herd cap", lambda: _check_herd_cap(episodes), failures)
+    _run_check("hire wage", lambda: _check_hire_wage(episodes), failures)
     return 1 if failures else 0
 
 

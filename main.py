@@ -806,7 +806,7 @@ def _market(farm, private, scan, day, hour, market_prices, todo, build_want, whe
     # reaches this branch.
     unlocked = len(_g(farm, "unlocked_quadrants", ["NW"]) or ["NW"])
     land = [1000, 2000, 4000]
-    if unlocked < LAND_TARGET and unlocked < 4 and spend > land[unlocked - 1] + LAND_RESERVE:
+    if unlocked < LAND_TARGET and unlocked < 4 and spend >= land[unlocked - 1] + LAND_RESERVE:
         orders.append(["BUY_LAND"])
         spend -= land[unlocked - 1]
 
@@ -819,7 +819,7 @@ def _market(farm, private, scan, day, hour, market_prices, todo, build_want, whe
     for crop, n in CROP_PLAN:
         want = min(n - planted.get(crop, 0) - seeds.get(crop, 0), SEED_BATCH)
         cost = CROPS[crop]["seed"]
-        if want > 0 and spend > cost * want:
+        if want > 0 and spend >= cost * want:
             orders.append(["BUY_SEED", crop, want])
             spend -= cost * want
 

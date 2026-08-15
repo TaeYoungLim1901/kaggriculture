@@ -586,3 +586,57 @@ single workload is WATER, 34 tiles a day with no shed trip at all.
 vs `bench/v15.py` **64W-0L +7,785 worst +3,889** on the independent 32-seed panel. Panel at 32:
 v15 32W-0L +8,702, v14 32W-0L +10,941, v3 32W-0L +29,007, `ref_broker_bea` -49,333 (v15 -47,700),
 `ref_closer_cleo` -50,767 (v15 -55,168). All four stages green.
+
+### The berry field is closed for this architecture
+
+Staged planning (`CROP_PLAN2` + `PLAN_DAY`, a second plan that replaces the first from a given day)
+was built to answer the one objection left standing against berries: the seed-buy loop spends its
+budget in `CROP_PLAN` order, so a $100 STRAWBERRY seed listed ahead of the $10 WHEAT seed starves the
+cash engine, and `ref_broker_bea` avoids exactly that by starting berries on day 4 rather than day 0.
+Measured against v15, 12 seeds × 2 seats, where the build itself scores **+8,975**:
+
+| variant | W-L | mean |
+| --- | --- | ---: |
+| day 5, +16 berry, `LAND_TARGET` 3 | 23W-1L | +2,257 |
+| day 8, +16 berry, `LAND_TARGET` 3 | 23W-1L | +2,745 |
+| day 12, +16 berry, `LAND_TARGET` 3 | 23W-1L | +3,831 |
+| day 8, +8 berry, `LAND_TARGET` 3 | 24W-0L | +4,611 |
+| day 8, +28 berry, `LAND_TARGET` 3 | 21W-3L | +2,986 |
+| day 8, 8 berry **swapped for** 6 wheat, `LAND_TARGET` 2 | 22W-2L | +4,176 |
+| day 8, 16 melon (no berry), `LAND_TARGET` 3 | 23W-1L | +2,998 |
+
+Every row loses to doing nothing. Timing was not the blocker and neither was seed ordering: 34 tiles is
+the labour ceiling at 11 hands, and a berry tile added past it is a tile nobody waters. Swapping wheat
+out instead of adding on top gets closest (+4,176) and still loses by 4,800. Reverted — the repo does
+not keep experiments behind a zero default. Do not re-open the berry line without first buying labour
+capacity, and note that `HIRES` 12 and 13 both lose, so that capacity is not for sale at the moment.
+
+Also negative on this build: `SELL_FLOOR`, a price gate that skips a SELL whose price has fallen below
+a fraction of base, to stop spending order slots on a book the opponent has floored (our WOOL and MILK
+both sit at $1 from day 17 against `ref_broker_bea`). Monotone loss in the strength of the gate —
+0.10 +8,130, 0.20 +7,445, 0.30 +7,150, 0.50 +2,764, 0.70 +3,530. Selling wool at $1 still beats not
+selling it: the goods are already grown and only hour 0 is genuinely slot-bound.
+
+### The purchase budget is a heuristic, and correcting it costs money
+
+A second read-only audit found four live accounting gaps in `_market`'s `spend` budget. Three are
+real and fixing all three measured **worse**, against the +8,975 baseline:
+
+| fix | what it corrects | measured |
+| --- | --- | ---: |
+| charge `spend` for the HIRE wage | HIRE settles before any purchase in the same turn (`kaggriculture.py:556-566` runs the atomic verbs first), so at `HIRE_HOUR0` 7 the wage is gone before BUY_SEED is quoted | **-370** |
+| cap the feed `BUY_PRODUCT` by `spend // price` | it only checked `spend > 0` and then ordered up to 20 | **-290** |
+| `>=` instead of `>` on exact-budget seed and land purchases | an exactly affordable purchase was skipped | **±0** |
+
+`spend` is not a constraint the env enforces — the env rejects an unaffordable order by itself, and a
+rejected order costs one slot while a *skipped* purchase delays the engine for a whole turn. So a
+budget that is slightly too optimistic is the correct heuristic, and only the boundary fix is kept.
+
+Also confirmed and left alone: purchases are appended after the sells and then truncated at ten, and
+seed 7 hits that cap 13 times (all at hour 0, dropping 3 `BUY_SEED`). The `BUY_SLOTS` reservation is
+the knob for it and both directions lose — 0 is +4,473 and 2 is +4,853 against +8,975.
+
+**Constants are at a local optimum on this build.** Never swept before, all at or below baseline:
+`BUY_SLOTS` 0/2, `SHED_CAP` 80/120 (**exactly** +8,975 — does not bind), `SEED_BATCH` 10 (likewise),
+`CASH_FLOOR` 1500 (-22,346), `LAND_RESERVE` 300 (-8,844), `PRIO_COST` band 2 -700 (+769), band 6 -500
+(+3,652), band 1 -900 (+2,381).

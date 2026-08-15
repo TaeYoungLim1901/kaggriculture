@@ -24,7 +24,7 @@ STEPS = 720
 OVERRIDABLE = {
     "LAND_TARGET", "CROP_PLAN", "ANIMAL_PLAN", "HIRES", "SEED_BATCH", "LAND_RESERVE",
     "ANIMAL_RESERVE", "ANIMAL_PIPELINE", "DRAIN_SCALE", "PLANT_CAP", "DIST_WEIGHT",
-    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0", "SELL_BY_VALUE", "FERT_RESERVE", "PRIO_COST", "CASH_FLOOR", "FEED_DAYS", "SHED_CAP", "BUY_SLOTS",
+    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0", "SELL_BY_VALUE", "FERT_RESERVE", "PRIO_COST", "CASH_FLOOR", "FEED_DAYS", "SHED_CAP", "BUY_SLOTS", "CROP_PLAN2", "PLAN_DAY", "SELL_FLOOR",
 }
 SUMMARY = re.compile(
     r"(?P<w>\d+)W-(?P<l>\d+)L-(?P<t>\d+)T over (?P<n>\d+) games "
@@ -255,6 +255,47 @@ CONFIGS = {
     "w-LD13": {"LAST_DAY": 13},
     "w-LD14": {"LAST_DAY": 14},
     "w-LD6": {"LAST_DAY": 6},
+    # Never swept at all, or never swept since the plan changed. BUY_SLOTS and
+    # SHED_CAP have sat at their first-commit defaults since the repo started, and
+    # HIRE_HOUR0 7 leaves only `10 - 7 - BUY_SLOTS` sell slots in hour 0, so the
+    # reservation is worth much more now than when it was written.
+    "n-BS0": {"BUY_SLOTS": 0},
+    "n-BS2": {"BUY_SLOTS": 2},
+    "n-SC80": {"SHED_CAP": 80},
+    "n-SC120": {"SHED_CAP": 120},
+    "n-harv700": {"PRIO_COST": {0: -900, 1: -700, 2: -700, 3: -300, 4: -220, 5: -120, 6: -260}},
+    "n-plant500": {"PRIO_COST": {0: -900, 1: -700, 2: -500, 3: -300, 4: -220, 5: -120, 6: -500}},
+    "n-water900": {"PRIO_COST": {0: -900, 1: -900, 2: -500, 3: -300, 4: -220, 5: -120, 6: -260}},
+    "n-CF1500": {"CASH_FLOOR": 1500},
+    "n-LR300": {"LAND_RESERVE": 300},
+    "n-SB10": {"SEED_BATCH": 10},
+    # Staged plan: wheat and melon first, berries once the cash engine is running.
+    # ref_broker_bea starts berries on day 4 and buys its second and third quadrants
+    # on days 7 and 10. STRAWBERRY needs `first_yield_day` 10 plus a 2-day interval,
+    # so a berry planted after ~day 16 barely pays for its own $100 seed.
+    "s-d5L3": {"LAND_TARGET": 3, "PLAN_DAY": 5,
+               "CROP_PLAN2": [("MELON", 8), ("WHEAT", 26), ("STRAWBERRY", 16)]},
+    "s-d8L3": {"LAND_TARGET": 3, "PLAN_DAY": 8,
+               "CROP_PLAN2": [("MELON", 8), ("WHEAT", 26), ("STRAWBERRY", 16)]},
+    "s-d12L3": {"LAND_TARGET": 3, "PLAN_DAY": 12,
+                "CROP_PLAN2": [("MELON", 8), ("WHEAT", 26), ("STRAWBERRY", 16)]},
+    "s-d8L3b8": {"LAND_TARGET": 3, "PLAN_DAY": 8,
+                 "CROP_PLAN2": [("MELON", 8), ("WHEAT", 26), ("STRAWBERRY", 8)]},
+    "s-d8L3b28": {"LAND_TARGET": 3, "PLAN_DAY": 8,
+                  "CROP_PLAN2": [("MELON", 8), ("WHEAT", 26), ("STRAWBERRY", 28)]},
+    "s-d8L2b8": {"PLAN_DAY": 8,
+                 "CROP_PLAN2": [("MELON", 8), ("WHEAT", 20), ("STRAWBERRY", 8)]},
+    "s-d8L3m": {"LAND_TARGET": 3, "PLAN_DAY": 8,
+                "CROP_PLAN2": [("MELON", 16), ("WHEAT", 26)]},
+    # SELL_FLOOR (reverted): a price gate on which goods get an order slot.
+    # Monotone loss against the +8,975 baseline -- 0.10 +8,130, 0.20 +7,445,
+    # 0.30 +7,150, 0.50 +2,764, 0.70 +3,530. Selling wool at $1 still beats not
+    # selling it: the goods are already grown and only hour 0 is slot-bound.
+    "f-10": {"SELL_FLOOR": 0.10},
+    "f-20": {"SELL_FLOOR": 0.20},
+    "f-30": {"SELL_FLOOR": 0.30},
+    "f-50": {"SELL_FLOOR": 0.50},
+    "f-70": {"SELL_FLOOR": 0.70},
     # Priority bands. With DIST_WEIGHT 20 a 200-point band gap is worth 10 tiles of
     # walking, so the shape of this dict is now a routing knob, not just an ordering.
     # Never swept before 2026-08-14: a constant at its first-commit default is not
