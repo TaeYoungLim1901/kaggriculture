@@ -884,3 +884,18 @@ pipeline to build our own — `tools/record.py` → `tools/anneal.py` → `tools
 shelved for want of CPU. Free Kaggle kernels remove that constraint. A trace recorded on a single
 seed overfits it hard (4W-12L **-16,366** against v17), so the search has to run across a seed panel;
 `bake.py --hybrid` keeps the tuned market layer live instead of replaying recorded orders.
+
+### The trace line: two facts before it is worth more CPU
+
+**1. Annealing found nothing.** 600 evaluations over the panel `90001,1000,55555,8919` against
+`bench/v17.py`, donor recorded from v18, 52 minutes at 11.4 evaluations/min: `best` is identical to
+`seed`, panel mean **+2,018.2**, hold-outs +516 and +2,563. The mutation operators never beat the
+recorded trace once. Either the operators are too local or acceptance is too strict — read
+`tools/anneal.py` before spending another hour on it.
+
+**2. A baked trace is seat-0 only, and that is what the -16,366 was.** `build/trace_v18_hybrid.py`
+measured 4W-12L -16,366 against v17 over 16 games, which looked like seed overfitting. It is not: the
+recorded actions are a seat-0 script, `tools/eval.py` plays every seed in both seats, and the seat-1
+half replays nonsense. The same trace scores **+2,018 mean in seat 0** across four seeds. Kaggle
+assigns seats at random, so any trace we ship has to cover both seats (`anneal.py --both-seats`) or
+half the ladder games are forfeit.
