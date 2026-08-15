@@ -51,7 +51,13 @@ try:
     with tarfile.open(fileobj=io.BytesIO(base64.b64decode(PAYLOAD))) as tar:
         tar.extractall("/kaggle/working/repo", filter="data")
     os.chdir("/kaggle/working/repo")
+    import kaggle_environments as ke, importlib.metadata as md
     report("unpacked: " + ", ".join(sorted(os.listdir("."))))
+    report("kaggle-environments " + md.version("kaggle-environments"))
+    # Canary: a fixed pairing whose local value is known. A remote result that does
+    # not reproduce it is measuring a different environment and must not be used.
+    from kaggle_environments.envs.kaggriculture import kaggriculture as K
+    report("env check: COW=" + str(K.ANIMALS["COW"]) + " FLOOR=" + str(K.PRICE_FLOOR))
     for opp in "{opp}".split(","):
         report("=== vs " + opp)
         completed = subprocess.run(

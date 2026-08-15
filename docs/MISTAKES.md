@@ -20,6 +20,8 @@ Read this file before a submission and after any context compaction.
 | 9 | `tools/fillprobe.py` v1 matched farms by identity against `env.state[...].observation`, which hands out copies. It reported the opponent's entire economy as `$0` | Nearly published a false table | The probe resolves ownership inside `_process_market`, where the real `farms` list lives. **Any probe that can report a zero must be checked against a known-nonzero case before its output is used** |
 | 10 | Judged berry builds on the mirror panel alone. In a mirror both sides sell the same goods, so MILK settles at $49/unit against $234 vs an opponent who sells berries instead | Three sessions of "berries lose" rows that were partly a panel artifact | Every accept decision needs the mirror **and** at least one independent opponent (`bench/ref_broker_bea.py`, `bench/ref_closer_cleo.py`), and they must agree in sign — see `AGENTS.md` §5 |
 
+| 11 | Read a Kaggle-kernel sweep as a result without checking that the remote environment matches this one. The panel reported `BASE` beating `ref_broker_bea` 11W-3L **+62**, where the same pairing locally is 0W-16L **-47,463**, and v15 as 6W-10L -89 against a local 8W-0L +6,770 | One panel run, and it would have reversed a strategic call if believed | `tools/kjob.py` prints the remote `kaggle-environments` version and an env fingerprint (`ANIMALS["COW"]`, `PRICE_FLOOR`) in every run. **A remote number is not evidence until a known local pairing reproduces there** |
+
 ## Rules that are not checkable by code
 
 - **Never edit `main.py` while a sweep is running.** `tools/sweep.py` materialises each variant from
