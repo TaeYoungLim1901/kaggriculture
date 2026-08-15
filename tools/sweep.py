@@ -186,6 +186,44 @@ CONFIGS = {
     "b-m10w26": {"CROP_PLAN": [("MELON", 10), ("WHEAT", 26)]},
     "b-m12w26": {"CROP_PLAN": [("MELON", 12), ("WHEAT", 26)]},
     "b-m6w26": {"CROP_PLAN": [("MELON", 6), ("WHEAT", 26)]},
+    # Session 8, under v15 (8 MELON + 26 WHEAT). Every constant below was tuned on the
+    # 28-tile wheat-only plan, so re-measure. GOOSE has never been tried at all: EGG is
+    # the only animal product with a `log` glut curve (above_target 0.20), so its price
+    # never floors, while WOOL floors after ~59 units above I0 (`sq`, 3.20, T 105) and
+    # MILK is routinely driven to $1 by the opponent. GOOSE is also the cheapest ($300),
+    # the earliest (first_yield_day 4) and the only daily producer (interval 1).
+    "h-g5c8": {"ANIMAL_PLAN": ["GOOSE"] * 5 + ["COW"] * 8},
+    "h-g13": {"ANIMAL_PLAN": ["GOOSE"] * 13},
+    "h-g8c5": {"ANIMAL_PLAN": ["GOOSE"] * 8 + ["COW"] * 5},
+    "h-g4s3c6": {"ANIMAL_PLAN": ["GOOSE"] * 4 + ["SHEEP"] * 3 + ["COW"] * 6},
+    "h-g2s5c8": {"ANIMAL_PLAN": ["GOOSE"] * 2 + ["SHEEP"] * 5 + ["COW"] * 8},
+    "h-s0c8": {"ANIMAL_PLAN": ["COW"] * 8},
+    "v-H11": {"HIRES": 11},
+    "v-H12": {"HIRES": 12},
+    # GOOSE is a dead end however it is mixed: 5G+8C -10,876, 13G -38,960, 8G+5C
+    # -22,466, 4G+3S+6C -15,493, 2G+5S+8C -60,592. EGG never floors but a goose only
+    # holds 4 units and the walking to collect them costs more than the eggs are worth.
+    # HIRES 11 wins under the 34-tile plan (+3,660) where it lost under the 28-tile one.
+    "v-H13": {"HIRES": 13},
+    "v-H11w28": {"HIRES": 11, "CROP_PLAN": [("MELON", 8), ("WHEAT", 28)]},
+    "v-H11w30": {"HIRES": 11, "CROP_PLAN": [("MELON", 8), ("WHEAT", 30)]},
+    "v-H11m10": {"HIRES": 11, "CROP_PLAN": [("MELON", 10), ("WHEAT", 26)]},
+    "v-H11F4": {"HIRES": 11, "HIRE_HOUR0": 4},
+    "v-H11F7": {"HIRES": 11, "HIRE_HOUR0": 7},
+    "v-H11L3": {"HIRES": 11, "LAND_TARGET": 3},
+    "v-H11S3": {"HIRES": 11, "HIRE_SLOTS": 3},
+    # COLLECT_FERTILIZER sits in band 4. `fertilizer_available` is a boolean reset
+    # every day and it does not accumulate, so a collection missed is a unit gone:
+    # 160 collected against 312 available animal-days on seed 7, ~152 units.
+    # CARE (band 3) misses cost another ~23 product units. Both are priority, not
+    # capacity -- the tasks are generated, the matching just never reaches them.
+    "pf-450": {"PRIO_COST": {0: -900, 1: -700, 2: -500, 3: -300, 4: -450, 5: -120, 6: -260}},
+    "pf-600": {"PRIO_COST": {0: -900, 1: -700, 2: -500, 3: -300, 4: -600, 5: -120, 6: -260}},
+    "pf-800": {"PRIO_COST": {0: -900, 1: -700, 2: -500, 3: -300, 4: -800, 5: -120, 6: -260}},
+    "pc-500": {"PRIO_COST": {0: -900, 1: -700, 2: -500, 3: -500, 4: -220, 5: -120, 6: -260}},
+    "pfc": {"PRIO_COST": {0: -900, 1: -700, 2: -500, 3: -500, 4: -600, 5: -120, 6: -260}},
+    "pd-300": {"PRIO_COST": {0: -900, 1: -700, 2: -500, 3: -300, 4: -220, 5: -300, 6: -260}},
+    "pf-100": {"PRIO_COST": {0: -900, 1: -700, 2: -500, 3: -300, 4: -100, 5: -120, 6: -260}},
     # Priority bands. With DIST_WEIGHT 20 a 200-point band gap is worth 10 tiles of
     # walking, so the shape of this dict is now a routing knob, not just an ordering.
     # Never swept before 2026-08-14: a constant at its first-commit default is not

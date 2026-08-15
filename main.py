@@ -270,8 +270,15 @@ def min_cost_assignment(cost) -> list[int | None]:
     return assignment
 
 def _fib(n):
-    """Cost of the n-th hire of the day (kaggriculture.py:685, mult 1)."""
-    a, b = 0, 1
+    """Cost of the n-th hire of the day (kaggriculture.py:677-686, mult 1).
+
+    The env indexes this from 1, not 0: _fib(0) = 1, _fib(1) = 1, _fib(2) = 2,
+    _fib(3) = 3, _fib(4) = 5. Seeding at (0, 1) instead of (1, 1) shifted every
+    cost down one place, so the affordability guard below priced the 9th hire of
+    the day at $21 when the env charges $34, requested a hire it could not pay
+    for, and burned the order slot -- ten hands cost $143 a day, not $88.
+    """
+    a, b = 1, 1
     for _ in range(n):
         a, b = b, a + b
     return a
@@ -381,6 +388,14 @@ def _tasks(scan, day, plant_want, build_want):
     jobs = [[BUILD[k]] for k in build_want]
     for crop, n in plant_want.items():
         jobs += [["PLANT", crop]] * n
+    # Placement order is row-major, i.e. from the corner of NW furthest from the
+    # shed, so BUILD (at the head of `jobs`) takes the far tiles and crops fill in
+    # around the shed. That looks backwards -- an animal tile is visited four times
+    # a day against a crop tile's one -- but it measures better than the sort:
+    # structures-near-shed is 12W-12L -143 and structures-far 16W-8L +242 against
+    # the same build. The hands respawn on the shed-access tiles and the largest
+    # single workload is WATER, 34 tiles a day with no shed trip at all, so keeping
+    # the crops compact around the spawn beats shortening the animal round trips.
     for pos, job in zip(scan["empty"], jobs):
         out.append((6, pos, job, None))
     return out
@@ -726,8 +741,13 @@ def _market(farm, private, scan, day, hour, market_prices, todo, build_want, whe
     spend = money - max(CASH_FLOOR, n_animals * wheat_price * FEED_DAYS)
     need_wheat = n_animals * 2 - shed.get("WHEAT", 0)
     if need_wheat > 0 and spend > 0:
-        orders.append(["BUY_PRODUCT", "WHEAT", min(need_wheat, 20)])
-        spend -= need_wheat * 40
+        # Charge the budget for the quantity actually ordered at the quoted price,
+        # not for the whole shortfall at a flat $40: the order is capped at 20 and
+        # WHEAT has traded as high as $42, so the old line both over-reserved on a
+        # big shortfall and under-reserved on an expensive one.
+        qty = min(need_wheat, 20)
+        orders.append(["BUY_PRODUCT", "WHEAT", qty])
+        spend -= qty * wheat_price
 
     # Buy an animal as soon as ANY matching structure is vacant. Waiting for the
     # whole build plan to finish starves the herd of capital: seeds and pastures
@@ -833,6 +853,10 @@ def _act(obs):
     unfed = sum(1 for _, t in scan["animals"] if not t.get("fed_today"))
     to_carry = max(0, unfed - sum(inv.get("WHEAT", 0) for inv in invs))
     shed_animal = next((a for a in ANIMALS if shed.get(a, 0) > 0), None)
+    # The shed is one pile: unit actions resolve in sequence, so a second PICKUP
+    # sized against the *original* stock is rejected outright once the first has
+    # emptied it. Track what is left as we hand the errands out.
+    avail_wheat = shed.get("WHEAT", 0)
     for i, pos in enumerate(units):
         if i in errand or invs[i]:
             continue
@@ -840,10 +864,11 @@ def _act(obs):
         if shed_animal and any(k == ANIMALS[shed_animal]["structure"] for _, k in open_struct):
             errand[i] = (door, ["PICKUP", shed_animal, shed.get(shed_animal, 0)])
             shed_animal = None
-        elif to_carry > 0 and shed.get("WHEAT", 0) > 0:
-            n = min(6, shed.get("WHEAT", 0), to_carry)
+        elif to_carry > 0 and avail_wheat > 0:
+            n = min(6, avail_wheat, to_carry)
             errand[i] = (door, ["PICKUP", "WHEAT", n])
             to_carry -= n
+            avail_wheat -= n
 
     if BUNDLE:
         for i in errand:
