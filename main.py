@@ -70,7 +70,6 @@ SELL_HOURS = tuple(range(0, 24))
 LAST_DAY = 12
 
 DROP_IDLE = True            # idle hands walk harvested goods into the shed
-PLACE_ORDER = 0             # 0 row-major, 1 nearest the shed first, -1 farthest first
 SHED_CAP = 100
 SHED_TILES = [(4, 4), (5, 4), (4, 5), (5, 5)]
 CASH_FLOOR = 250            # absolute minimum cash
@@ -415,16 +414,7 @@ def _tasks(scan, day, plant_want, build_want):
     # the same build. The hands respawn on the shed-access tiles and the largest
     # single workload is WATER, 34 tiles a day with no shed trip at all, so keeping
     # the crops compact around the spawn beats shortening the animal round trips.
-    # PLACE_ORDER re-asks the same question as geometry rather than as job type: the
-    # board is filled row-major, i.e. from the corner of NW furthest from the shed, so
-    # the farm ends up a sparse rectangle. Filling nearest-first makes it a tight disk
-    # around the spawn instead. Movement is 54% of our unit-actions, so this is the
-    # knob that pays if any placement knob does.
-    empty = scan["empty"]
-    if PLACE_ORDER:
-        empty = sorted(empty, key=lambda p: min(_dist(p, s) for s in SHED_TILES),
-                       reverse=PLACE_ORDER < 0)
-    for pos, job in zip(empty, jobs):
+    for pos, job in zip(scan["empty"], jobs):
         out.append((6, pos, job, None))
     return out
 

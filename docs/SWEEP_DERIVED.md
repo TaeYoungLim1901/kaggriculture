@@ -769,3 +769,20 @@ tiles ever lands. Still wrong: a third quadrant (0W-32L -4,534) and melon past 8
 **v18 = relaxed DROP + `CROP_PLAN` 8 melon / 30 wheat**, 50W-14L **+1,203** worst -1,489 against
 `bench/v17.py` at 32 seeds × 2 seats. The independent opponents disagree in sign and cleo has the
 bigger vote: `ref_closer_cleo` -47,864 → **-42,581**, `ref_broker_bea` -43,502 → -45,684.
+
+### Geometry is not a lever, and the mirror panel has a bias
+
+Board placement, re-asked as geometry rather than as job type. `PLACE_ORDER` filled the empty tiles
+nearest the shed first (a tight disk around the spawn) or farthest first, against the row-major fill
+that starts in the corner of NW. Run on a free Kaggle CPU kernel (`tools/kjob.py`), 16 seeds × 2
+seats: nearest **16W-16L -18**, farthest **16W-16L -43**. A perfectly balanced record with a margin
+inside the noise — the board is nearly full either way (about 38 of ~46 usable tiles), so the fill
+order barely changes which tiles end up occupied. Reverted; `reward` is `money` and nothing else
+(`kaggriculture.py:950`), so a symmetric board earns nothing for being symmetric.
+
+`tools/fillprobe.py` also found a bias in the mirror panel worth carrying forward. In a mirror both
+sides sell the same goods into one book, so our own MILK settles at **$49/unit** (178 units for
+$8,728) where the same herd against `ref_broker_bea` gets **$234** (188 units for $44,048). Any
+build that shifts production between books is therefore judged partly on an artifact, which is why
+every accept decision now needs the mirror *and* an independent opponent to agree in sign
+(`docs/MISTAKES.md` row 10).

@@ -24,7 +24,7 @@ STEPS = 720
 OVERRIDABLE = {
     "LAND_TARGET", "CROP_PLAN", "ANIMAL_PLAN", "HIRES", "SEED_BATCH", "LAND_RESERVE",
     "ANIMAL_RESERVE", "ANIMAL_PIPELINE", "DRAIN_SCALE", "PLANT_CAP", "DIST_WEIGHT",
-    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0", "SELL_BY_VALUE", "FERT_RESERVE", "PRIO_COST", "CASH_FLOOR", "FEED_DAYS", "SHED_CAP", "BUY_SLOTS", "SELL_MIN", "DROP_IDLE", "PLACE_ORDER",
+    "STICKY", "BUNDLE", "SELL_HOURS", "LAST_DAY", "HIRE_SLOTS", "HIRE_HOUR0", "SELL_BY_VALUE", "FERT_RESERVE", "PRIO_COST", "CASH_FLOOR", "FEED_DAYS", "SHED_CAP", "BUY_SLOTS", "SELL_MIN", "DROP_IDLE",
 }
 SUMMARY = re.compile(
     r"(?P<w>\d+)W-(?P<l>\d+)L-(?P<t>\d+)T over (?P<n>\d+) games "
@@ -354,8 +354,6 @@ CONFIGS = {
     # unit-actions, and the board is currently filled row-major from the corner of NW
     # furthest from the shed. Nearest-first makes the farm a tight disk around the
     # spawn. The old placement rows only reordered structures against crops.
-    "g-near": {"PLACE_ORDER": 1},
-    "g-far": {"PLACE_ORDER": -1},
     # SELL_MIN (reverted): dynamic slot allocation -- sells take every slot the
     # hires leave and a purchase that materialises evicts the cheapest sells down
     # to a floor, instead of BUY_SLOTS reserving slots whether or not anything is
