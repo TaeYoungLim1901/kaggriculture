@@ -850,3 +850,37 @@ comment on the WATER task in case an ongoing crop ever earns its place.
 
 Buying land *earlier* is much worse, not better: `LAND_RESERVE` 0 costs 20k against holding the
 reserve. Two quadrants, 38 crop tiles and 13 animals is the plateau for this architecture.
+
+## Session 10: where v18 actually sits, and what the tiers above it are
+
+The reference dataset ships **ten** agents, not the two we had been using. Tiers 0-5 are an authored
+ladder; tiers 6-9 all replay the **same** 712-turn action trace — a public meta line that
+`cross_team_identity.py` found played verbatim by 104 distinct teams — and differ only in their
+market layer. v18 against the ones we had never played, 6 seeds × 2 seats, on a free Kaggle kernel:
+
+| opponent | tier | v18 | dataset's own bank |
+| --- | ---: | --- | ---: |
+| `ref_wheat_walter` | 1 | 12W-0L **+91,834** | 7,200 |
+| `ref_rotation_rosa` | 2 | 12W-0L +84,792 | 12,300 |
+| `ref_homestead_hana` | 3 | 12W-0L +81,513 | 16,700 |
+| `ref_melon_mateo` | 4 | 12W-0L +69,313 | 44,000 |
+| `ref_rancher_rita` | 5 | 12W-0L **+59,044** | 53,000 |
+| `ref_ledger_lena` | 7 | 0W-12L -49,132 | 186,991 |
+| `ref_slotter_silas` | 8 | 0W-12L -48,080 | 185,853 |
+| `ref_broker_bea` | 6 | 0W-16L -45,684 | 186,766 |
+| `ref_closer_cleo` | 9 | 0W-16L -42,581 | 186,198 |
+
+We beat the entire authored ladder and lose to the entire meta line. For scale, the dataset's own
+league has tier 5 losing to tier 6 by **-128,041**; we lose by -45k to -49k, so the engine is
+comfortably the strongest non-trace agent we know of and roughly "tier 5.5".
+
+**The gap is trace-shaped, not reaction-shaped.** Tiers 6-9 are not reacting better — they replay a
+fixed, offline-optimised action sequence and only their market orders are live. That is why every
+constant we sweep is at a local optimum: the reactive architecture is finished, and 186k needs a
+planned sequence.
+
+We do not ship other people's traces ([[own model only]], `AGENTS.md` §5). The repo already has the
+pipeline to build our own — `tools/record.py` → `tools/anneal.py` → `tools/bake.py` — and it was
+shelved for want of CPU. Free Kaggle kernels remove that constraint. A trace recorded on a single
+seed overfits it hard (4W-12L **-16,366** against v17), so the search has to run across a seed panel;
+`bake.py --hybrid` keeps the tuned market layer live instead of replaying recorded orders.
