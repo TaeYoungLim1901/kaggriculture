@@ -1005,3 +1005,73 @@ moment `_ripe` frees more melon work. And the crop the doubling helps most is WH
 trip nets ~$5k on 11,000 executed units, so doubling its yield doubles almost nothing.
 `_ripe` on its own moves MELON from $13,141 to $16,101 and is the half worth re-testing if the
 labour ceiling ever moves.
+
+### v20: harvest at the cap, not on `max_yield_day`
+
+The same WATER-accrual reading that made crop fertilizer look attractive contains a second, free
+result. Yield accrues once per WATER inside `(max_yield_day + 1) // 2 .. max_yield_day` and is
+capped at `max_yield`, so a MELON watered every day holds all 6 units at **age 11** while
+`max_yield_day` is 12. `main.py` tested `ripe = age >= max_day`, so every melon spent a tile-day
+holding a harvest it could not grow any further.
+
+`_ripe` (a non-ongoing crop is ripe once `yield_units >= max_yield`, or on `max_day` as before):
+
+| panel | result |
+| --- | --- |
+| mirror vs `bench/v19.py`, 32 paired episodes | **32W-0L mean +7,239, worst +6,218** |
+| independent `bench/ref_broker_bea.py`, 32 | margin -44,655 → **-36,154**, 1W-31L → **4W-28L** |
+
+The first time this engine has taken more than one game off the meta line. Shipped as v20,
+snapshot `bench/v20.py`.
+
+### Everything else measured on 08-16, all rejected
+
+| change | mirror | `ref_broker_bea` | verdict |
+| --- | --- | --- | --- |
+| FERTILIZE all crops + `_ripe` | 3W-29L -4,431 | — | reverted |
+| FERTILIZE `MELON`/`STRAWBERRY`/`TOMATO` only, on v20 | 0W-32L **-13,035** | — | reverted |
+| window-aware WATER (skip outside the accrual window, survive on `consecutive_unwatered < 2`) | 23W-9L **+173** | -36,154 → **-37,969**, 4W → 0W | rejected, signs disagree (`MISTAKES` row 10) |
+| `CROP_PLAN` MELON 10 / WHEAT 28 | -2,476 | — | rejected |
+| `CROP_PLAN` MELON 12 / WHEAT 26 | -18,526 | — | rejected |
+| `CROP_PLAN` MELON 16 / WHEAT 22 | -17,795 | — | rejected |
+
+Fertilizing crops is closed in every form. The mechanic is real and the hands are the reason it
+loses: each FERTILIZE is a WATER or a CARE not done, and the crop the doubling helps most is the
+one whose round trip nets nothing.
+
+### The berry-capital quadrant, and what it did not test
+
+All 11 rows against `ref_broker_bea`, 16 seeds × 2 seats, **0W-32L every one** (v19's own margin on
+the same panel is -44,655):
+
+| row | margin | worst |
+| --- | ---: | ---: |
+| `b20lr0` | -56,019 | -72,433 |
+| `b20sb10` | -66,415 | -89,886 |
+| `b10h4` | -68,810 | -97,847 |
+| `b20h4` | -69,190 | -97,590 |
+| `b20h2` | -73,216 | -98,224 |
+| `b20H8h4` | -78,571 | -102,262 |
+| `b30` | -81,057 | -101,416 |
+| `b10` | -84,394 | -110,891 |
+| `b20` | -85,880 | -108,645 |
+| `b20H8` | -93,552 | -118,451 |
+| `b20a8` | -142,095 | -194,518 |
+
+**Read this as a null result on those constants, not on the strategy.** None of `HIRE_HOUR0`,
+`HIRES`, `ANIMAL_PLAN`, `LAND_RESERVE` or `SEED_BATCH` moves the mechanism the probes actually
+found. Decoded day by day from the two traces:
+
+| | day 0 purchase | first large revenue |
+| --- | --- | --- |
+| us | 3 SHEEP, 8 MELON seed, 25 WHEAT seed | day 12 |
+| `ref_broker_bea` | **3 COW**, 1 SHEEP, 7 MELON seed, 11 WHEAT seed | **day 8** |
+
+COW's `first_yield_day` is 8 and MELON's window opens at age 6, so bea's day-0 basket is earning
+four days before ours; days 0-11 revenue is $27,288 against our $12,478 (theirs MELON $10,582 +
+MILK $3,938, ours MELON $0 + MILK $0), and that is what funds 44 strawberry seeds on days 4-14.
+Our labour spend is **not** the difference — counted from the traces, our first 16 days of hire
+wage is $2,466 against bea's $2,796.
+
+**Day-0 acquisition order has never been tested directly.** That is the next experiment, not
+another constant sweep.

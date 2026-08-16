@@ -44,6 +44,8 @@ Read this file before a submission and after any context compaction.
 
 ## Open
 
-- `tools/anneal.py` exits 1 on a Kaggle kernel with an empty stderr, at `--jobs 1` and `--jobs 2`,
-  while the identical command runs locally (24 evaluations in 148 s). Sweeps run there fine. Read the
-  whole `result.txt` next session — the job's own stdout was grepped away, per row 14.
+- ~~`tools/anneal.py` exits 1 on a Kaggle kernel with an empty stderr.~~ Moot: trace annealing is
+  closed on 2026-08-16. A recorded trace is a relative-motion script, so one substituted action
+  costs -7,341 and a 6-action splice -26,223 — the space is not smooth and the 600 zero-improvement
+  evaluations were the architecture, not a bug. See `docs/SWEEP_DERIVED.md` session 11.
+- Nothing else open.
