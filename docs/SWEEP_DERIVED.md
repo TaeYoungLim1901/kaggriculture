@@ -976,3 +976,32 @@ episode. Single mutations, one seed, against `bench/v17.py` (donor +1,807):
 That is why 600 evaluations produced zero improvement. The `market` sub-list *is* a smooth subspace
 — positions never move, so deltas are ±0 to ±250 and occasionally positive — but ±250 against a
 45,000 gap is the wrong instrument. Do not spend more CPU on `tools/anneal.py`.
+
+### Fertilizer on non-ongoing crops: real mechanic, measured loss
+
+`kaggriculture.py:424-431` — a non-ongoing crop accrues yield **on WATER**, not on the day tick,
+and the accrual is 2 instead of 1 while the tile is fertilized, capped at `max_yield`. The window
+runs from age `(max_yield_day + 1) // 2` to `max_yield_day`. So WHEAT waters three times for 3
+units, or **6 if fertilized** — one FERTILIZER doubles the harvest — and MELON fills its cap of 6 at
+age 8 fertilized, or age 11 unfertilized, against the age-12 `max_yield_day` our `ripe` test waited
+for. `main.py` gated FERTILIZE on `crop["ongoing"]` and so never used any of it, selling 252
+fertilizer units a season instead.
+
+Implemented as `_fert_window` (fertilize any crop inside its accrual window that is not at cap) plus
+`_ripe` (a non-ongoing crop is done as soon as it holds `max_yield`, not on `max_day`). Against
+`ref_broker_bea`, seed 90001:
+
+| build | final | MELON | WOOL | FERTILIZER sold |
+| --- | ---: | ---: | ---: | ---: |
+| v19 | $74,687 | $13,141 | $11,377 | 252 |
+| + crop fertilizer | $74,017 | $13,141 | $13,912 | 153 |
+| + crop fertilizer + `_ripe` | $71,170 | $16,101 | $7,075 | 142 |
+
+Mirror against `bench/v19.py`, 32 paired episodes: **3W-29L mean -4,431, worst -8,388.** Reverted.
+
+Two reasons, and both are about this engine rather than the mechanic. The hands are the binding
+constraint, so every FERTILIZE is a WATER or a CARE not done — WOOL falls from $11,377 to $7,075 the
+moment `_ripe` frees more melon work. And the crop the doubling helps most is WHEAT, whose round
+trip nets ~$5k on 11,000 executed units, so doubling its yield doubles almost nothing.
+`_ripe` on its own moves MELON from $13,141 to $16,101 and is the half worth re-testing if the
+labour ceiling ever moves.
