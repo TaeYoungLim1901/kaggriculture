@@ -15,12 +15,25 @@ fertilizer a day, which nothing in town consumes and which sells for ~$90.
 import math
 
 CROPS = {
-    "WHEAT":      {"seed": 10, "first": 2, "max_day": 4, "ongoing": False},
-    "CARROT":     {"seed": 20, "first": 2, "max_day": 3, "ongoing": False},
-    "TOMATO":     {"seed": 50, "first": 8, "max_day": 8, "ongoing": True},
-    "STRAWBERRY": {"seed": 100, "first": 10, "max_day": 10, "ongoing": True},
-    "MELON":      {"seed": 80, "first": 10, "max_day": 12, "ongoing": False},
+    "WHEAT":      {"seed": 10, "first": 2, "max_day": 4, "max_yield": 6, "ongoing": False},
+    "CARROT":     {"seed": 20, "first": 2, "max_day": 3, "max_yield": 4, "ongoing": False},
+    "TOMATO":     {"seed": 50, "first": 8, "max_day": 8, "max_yield": 4, "ongoing": True},
+    "STRAWBERRY": {"seed": 100, "first": 10, "max_day": 10, "max_yield": 4, "ongoing": True},
+    "MELON":      {"seed": 80, "first": 10, "max_day": 12, "max_yield": 6, "ongoing": False},
 }
+
+
+def _ripe(crop, age, yield_units):
+    """A non-ongoing crop is done as soon as it holds its cap, not on max_day.
+
+    Yield accrues once per WATER inside the window (max_day + 1) // 2 .. max_day
+    and is capped at max_yield (kaggriculture.py:424-431), so a MELON watered
+    every day is full at age 11 while max_day is 12. Waiting for max_day spends a
+    tile-day for nothing.
+    """
+    if crop["ongoing"]:
+        return age >= crop["first"]
+    return yield_units >= crop["max_yield"] or age >= crop["max_day"]
 ANIMALS = {
     "GOOSE": {"cost": 300, "structure": "COOP", "product": "EGG"},
     "COW":   {"cost": 400, "structure": "PASTURE", "product": "MILK"},
@@ -400,7 +413,7 @@ def _tasks(scan, day, plant_want, build_want):
             # -6,802 without, and it is inert here anyway -- neither WHEAT nor MELON
             # is ongoing.
             out.append((1, pos, ["WATER"], None))
-        ripe = age >= (crop["first"] if crop["ongoing"] else crop["max_day"])
+        ripe = _ripe(crop, age, t.get("yield_units", 0))
         if ripe and t.get("yield_units", 0) > 0:
             out.append((2, pos, ["HARVEST"], None))
         # A fertilized+watered production event yields 2 units instead of 1, and
@@ -523,8 +536,7 @@ def _bundle_refresh(scan, day, invs, shed, step):
                 plant = plants[goal]
                 crop = CROPS.get(plant.get("crop"), {})
                 age = day - plant.get("planted_day", day)
-                ripe = age >= (crop.get("first", 0) if crop.get("ongoing") else
-                               crop.get("max_day", 0))
+                ripe = bool(crop) and _ripe(crop, age, plant.get("yield_units", 0))
                 valid = {
                     "WATER": not plant.get("watered_today"),
                     "FERTILIZE": (crop.get("ongoing") and
@@ -645,7 +657,7 @@ def _bundle_make(primary, unit, unit_pos, owners, scan, day, inv, shed, claimed)
             if (crop["ongoing"] and plant.get("fertilized_until_day", -1) < day
                     and inv.get("FERTILIZER", 0) > 0):
                 groups["FERTILIZE"].append((pos, ["FERTILIZE"]))
-            ripe = age >= (crop["first"] if crop["ongoing"] else crop["max_day"])
+            ripe = _ripe(crop, age, plant.get("yield_units", 0))
             if ripe and plant.get("yield_units", 0) > 0:
                 groups["HARVEST"].append((pos, ["HARVEST"]))
         queue = []
