@@ -506,6 +506,9 @@ def _bundle_refresh(scan, day, invs, shed, step):
                 valid = shed.get(action[1], 0) > 0
                 if valid and action[1] == "WHEAT":
                     wheat += min(action[2] if len(action) > 2 else 1, shed["WHEAT"])
+                if valid and action[1] == "FERTILIZER":
+                    fertilizer += min(action[2] if len(action) > 2 else 1,
+                                      shed["FERTILIZER"])
             elif goal in animals:
                 animal = animals[goal]
                 valid = {
@@ -646,13 +649,29 @@ def _bundle_make(primary, unit, unit_pos, owners, scan, day, inv, shed, claimed)
             if ripe and plant.get("yield_units", 0) > 0:
                 groups["HARVEST"].append((pos, ["HARVEST"]))
         queue = []
+        fertilize = []
         for verb in ("WATER", "FERTILIZE", "HARVEST"):
             for pos, action in groups[verb]:
                 key = (pos, verb)
                 if owners.get(key) not in (None, unit):
                     continue
                 if key not in claimed:
-                    queue.append((pos, action)); claimed.add(key)
+                    if verb == "FERTILIZE":
+                        fertilize.append((pos, action, key))
+                    else:
+                        queue.append((pos, action))
+                    claimed.add(key)
+        fertilizer = inv.get("FERTILIZER", 0)
+        pickup = (min(6, shed.get("FERTILIZER", 0), max(0, len(fertilize) - fertilizer))
+                  if first_action[0] == "FERTILIZE" else 0)
+        if pickup:
+            queue.insert(0, (min(SHED_TILES, key=lambda p: _dist(goal, p)),
+                             ["PICKUP", "FERTILIZER", pickup]))
+            fertilizer += pickup
+        fertilize = fertilize[:fertilizer]
+        claimed.update(item[2] for item in fertilize)
+        insert_at = 1 if pickup else sum(action[0] == "WATER" for _, action in queue)
+        queue[insert_at:insert_at] = [(pos, action) for pos, action, _ in fertilize]
         return queue if first_action[0] in {"WATER", "FERTILIZE", "HARVEST"} else None
     return None
 
@@ -878,11 +897,16 @@ def _act(obs):
 
     unfed = sum(1 for _, t in scan["animals"] if not t.get("fed_today"))
     to_carry = max(0, unfed - sum(inv.get("WHEAT", 0) for inv in invs))
+    unfertilized = sum(1 for _, t in scan["plants"]
+                       if CROPS.get(t.get("crop"), {}).get("ongoing")
+                       and t.get("fertilized_until_day", -1) < day)
+    to_fertilize = max(0, unfertilized - sum(inv.get("FERTILIZER", 0) for inv in invs))
     shed_animal = next((a for a in ANIMALS if shed.get(a, 0) > 0), None)
     # The shed is one pile: unit actions resolve in sequence, so a second PICKUP
     # sized against the *original* stock is rejected outright once the first has
     # emptied it. Track what is left as we hand the errands out.
     avail_wheat = shed.get("WHEAT", 0)
+    avail_fertilizer = shed.get("FERTILIZER", 0)
     for i, pos in enumerate(units):
         if i in errand or invs[i]:
             continue
@@ -895,6 +919,11 @@ def _act(obs):
             errand[i] = (door, ["PICKUP", "WHEAT", n])
             to_carry -= n
             avail_wheat -= n
+        elif to_fertilize > 0 and avail_fertilizer > 0:
+            n = min(6, avail_fertilizer, to_fertilize)
+            errand[i] = (door, ["PICKUP", "FERTILIZER", n])
+            to_fertilize -= n
+            avail_fertilizer -= n
 
     if BUNDLE:
         for i in errand:
