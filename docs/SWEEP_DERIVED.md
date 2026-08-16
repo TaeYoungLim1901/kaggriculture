@@ -899,3 +899,80 @@ recorded actions are a seat-0 script, `tools/eval.py` plays every seed in both s
 half replays nonsense. The same trace scores **+2,018 mean in seat 0** across four seeds. Kaggle
 assigns seats at random, so any trace we ship has to cover both seats (`anneal.py --both-seats`) or
 half the ladder games are forfeit.
+
+## Session 11: where the 45k actually is, and why every berry sweep lost
+
+`tools/fillprobe.py` on the shipped build against `bench/ref_broker_bea.py`, seed 90001, one
+720-step episode, settled units only:
+
+| line | v18 | `ref_broker_bea` |
+| --- | ---: | ---: |
+| SELL:STRAWBERRY | **0** | **268 units, $65,532** |
+| SELL:MILK | 188, $44,048 | 200, $46,478 |
+| SELL:FERTILIZER | 252, $13,692 | 198, $11,107 |
+| SELL:MELON | 96, $13,141 | 114, $18,804 |
+| SELL:WOOL | 150, $11,377 | 168, $6,575 |
+| WHEAT round trip | 5,557 sold / 5,452 bought = **+$5,157** | 833 sold / 921 bought = **-$2,832** |
+| final | $74,687 | $124,813 |
+
+Every other line is within a few thousand. The gap is one product we do not grow, and 11,009
+executed wheat units that net $5k. They plant once and hold; we churn.
+
+### The fertilizer errand was missing (fixed, `d995cb7`)
+
+An ongoing crop's production event yields **2** units instead of 1 when the tile is watered *and*
+`fertilized_until_day >= current_day` (`kaggriculture.py:774-790`). `main.py` emitted the FERTILIZE
+task at priority 3 requiring a FERTILIZER in hand, but the errand block only ever issued PICKUP for
+WHEAT (to FEED) and for animals (to PLACE), so a hand could only fertilize when it happened to be
+carrying fertilizer straight after a COLLECT_FERTILIZER next door.
+
+Measured on `.sweep/berry_b20.py` (MELON 8 / STRAWBERRY 20 / WHEAT 10) against `ref_broker_bea`:
+
+| | production events | fertilized | produced | SELL:STRAWBERRY |
+| --- | ---: | ---: | ---: | ---: |
+| before | 86 | 14 (16%) | 100 | 92 units |
+| after | 86 | 41 (48%) | 127 | 116 units |
+| `ref_broker_bea` | 156 | 116 (74%) | 272 | 268 units |
+
+Inert on the shipped plan by construction — `CROP_PLAN` has no ongoing crop, the logic stage counts
+0 FERTILIZE actions, and the build still reads 15W-1L +1,765 against `bench/v17.py`.
+
+### The other half is capital, not agronomy
+
+End-of-day cash, days 0-14, on the berry variant:
+
+    196, 163, 130, 97, 64, 31, 11, 4, 0, 0, 0, 0, 5675, 1961, 942
+
+**The engine runs at $0 from day 8 to day 11.** With `HIRE_HOUR0` 7 the whole crew is hired in
+hour 0 of day 0 and the wage takes everything. On the shipped plan that is free — a WHEAT seed is
+$10 — but STRAWBERRY is $100 and only returns all four production events if the tile is planted by
+day 14 (planted day 17 it gets two; day 20, none). Planting-day histograms:
+
+| | strawberry planted on day |
+| --- | --- |
+| us | {0:6, 12:9, 13:3, 14:4, 17:5, 18:1, 29:1} |
+| `ref_broker_bea` | {4:2, 7:4, 8:8, 9:5, 10:4, 11:6, 12:8, 13:5, 14:2} |
+
+Days 1-11 are empty for us. bea has 38 tiles standing by day 14; we have 16. **Every berry sweep in
+this repo was run on top of the melon/wheat capital structure**, so none of them ever tested the
+thing that actually binds. Reordering the seed loop to buy ongoing crops first, and dropping
+`LAND_RESERVE` when an ongoing crop is planned, moves 116 units to 126 — it is not the lever.
+Reverted; the lever is the hire ramp and the herd, which is the sweep this session queues.
+
+### Trace annealing is closed
+
+Not a bug and not a local optimum — the search space is not smooth. A recorded trace is a
+*relative-motion* script (`["NORTH"], ["WEST"], ["WATER"]`), so any edit desynchronises every
+worker position downstream and the tile-addressed verbs fire on the wrong tiles for the rest of the
+episode. Single mutations, one seed, against `bench/v17.py` (donor +1,807):
+
+| operator | delta |
+| --- | ---: |
+| identity (same donor, same position) x3 | +0, +0, +0 |
+| one position from another donor | +0, -7,341, -7,946 |
+| 4-16 action splice | -2,717, -26,223, -24,156 |
+| block move/swap | -3,685, -69,831, -33,624 |
+
+That is why 600 evaluations produced zero improvement. The `market` sub-list *is* a smooth subspace
+— positions never move, so deltas are ±0 to ±250 and occasionally positive — but ±250 against a
+45,000 gap is the wrong instrument. Do not spend more CPU on `tools/anneal.py`.
